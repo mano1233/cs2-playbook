@@ -1,0 +1,20 @@
+# Local Postgres only. The app itself runs with `npm run dev` against it.
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: playbook
+      POSTGRES_PASSWORD: playbook
+      POSTGRES_DB: playbook
+    ports:
+      - "5433:5432"
+    volumes:
+      - playbook-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U playbook"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  playbook-pg:

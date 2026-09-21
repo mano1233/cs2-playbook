@@ -1,0 +1,9 @@
+# The image is Linux. A CRLF entrypoint fails as "bad interpreter: /bin/sh^M", and the
+# Windows checkout would otherwise hand Docker exactly that.
+* text=auto eol=lf
+
+*.sh      text eol=lf
+Dockerfile text eol=lf
+*.png     binary
+*.jpg     binary
+*.webp    binary
