@@ -20,6 +20,7 @@ export function TopBar({
           </span>
         ))}
         <div className="spacer" />
+        <Link href="/keys" className="who-link">keys</Link>
         <div className="who">
           <span>signed in as</span> <strong>{nickname}</strong>
         </div>

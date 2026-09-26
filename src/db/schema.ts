@@ -86,6 +86,34 @@ export const sessions = pgTable(
   (t) => [index("sessions_steamid64_idx").on(t.steamid64)],
 );
 
+/**
+ * A key that lets a script do what a signed-in teammate can.
+ *
+ * Stored hashed, like sessions, so reading the table does not hand anyone a working
+ * key. It carries no scopes: with five teammates, a key that can add a throw but not a
+ * strat is a distinction nobody asked for, and pretending otherwise would suggest a
+ * containment that is not there. A key is as powerful as its owner, which is why the
+ * plaintext is shown exactly once and revoking is a single click.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** HMAC of the token, never the token. */
+    tokenHash: text("token_hash").notNull().unique(),
+    steamid64: text("steamid64")
+      .notNull()
+      .references(() => players.steamid64, { onDelete: "cascade" }),
+    /** What it is for: "import script", "laptop". */
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** So an unused key is visibly unused and can be cleaned up. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_keys_steamid64_idx").on(t.steamid64)],
+);
+
 export const strats = pgTable(
   "strats",
   {
