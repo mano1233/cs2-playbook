@@ -33,7 +33,7 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 
 COPY --from=migrate-deps /migrate/node_modules ./migrate/node_modules
-COPY scripts/migrate.mjs ./migrate/migrate.mjs
+COPY scripts/migrate.mjs scripts/seed-roster.mjs ./migrate/
 COPY drizzle ./migrate/drizzle
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

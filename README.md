@@ -99,7 +99,7 @@ from the session token rather than stored — nothing to keep in sync.
 | `STEAM_API_KEY` | Optional. Avatars and display names only |
 | `R2_BUCKET`, `R2_ENDPOINT` | Lineup screenshots and radar images |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | R2 credentials, minted by Terraform |
-| `ROSTER` | Seeding only: `steamid64:nickname,...` |
+| `ROSTER` | `steamid64:nickname,...`. Seeded on every start when set, so the allowlist stays declarative in Terraform. Idempotent, and it leaves `active` alone |
 
 ## Versioning
 

@@ -16,7 +16,8 @@ export default async function Home() {
           </div>
           <div className="spacer" />
           <div className="who">
-            signed in as <strong>{auth.player.nickname}</strong>
+            <span>signed in as</span>{" "}
+            <strong>{auth.player.nickname}</strong>
           </div>
           <form action="/api/auth/logout" method="post">
             <button className="btn" type="submit">
