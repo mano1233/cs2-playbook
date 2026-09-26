@@ -8,7 +8,12 @@
  * Credentials arrive as AWS_* because that is what the S3 client reads; Terraform mints
  * them from a Cloudflare API token and writes them into the cluster secret.
  */
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { env } from "./env";
 
 let client: S3Client | undefined;
@@ -51,4 +56,21 @@ export async function getObject(key: string): Promise<FetchedObject | null> {
     if (name === "NoSuchKey" || name === "NotFound") return null;
     throw err;
   }
+}
+
+export async function putObject(key: string, body: Uint8Array, contentType: string) {
+  await s3().send(
+    new PutObjectCommand({
+      Bucket: env.r2().bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      // Content-addressed by a random id, so the bytes at a key never change.
+      CacheControl: "private, max-age=604800, immutable",
+    }),
+  );
+}
+
+export async function deleteObject(key: string) {
+  await s3().send(new DeleteObjectCommand({ Bucket: env.r2().bucket, Key: key }));
 }

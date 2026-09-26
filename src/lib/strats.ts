@@ -15,7 +15,8 @@ import {
   players,
   strats,
   stratRevisions,
-  utility,
+  stratUtility,
+  throws,
 } from "@/db/schema";
 
 export type Side = "t" | "ct";
@@ -70,8 +71,8 @@ export async function listStrats(map: string, side: Side) {
       author: players.nickname,
       phaseCount: sql<number>`(select count(*) from ${phases} where ${phases.stratId} = ${strats.id})`,
       utilityCount: sql<number>`(
-        select count(*) from ${utility}
-        join ${phases} p on p.id = ${utility.phaseId}
+        select count(*) from ${stratUtility}
+        join ${phases} p on p.id = ${stratUtility.phaseId}
         where p.strat_id = ${strats.id}
       )`,
     })
@@ -87,7 +88,10 @@ export interface FullStrat {
     phase: typeof phases.$inferSelect;
     assignments: (typeof assignments.$inferSelect)[];
     utility: {
-      item: typeof utility.$inferSelect;
+      /** The per-strat row: who throws it here, and any strat-specific note. */
+      use: typeof stratUtility.$inferSelect;
+      /** The shared throw it points at — geometry, technique, name. */
+      item: typeof throws.$inferSelect;
       lineups: (typeof lineups.$inferSelect)[];
     }[];
   }[];
@@ -109,15 +113,19 @@ export async function getStrat(id: string): Promise<FullStrat | null> {
 
   const [assignmentRows, utilityRows] = await Promise.all([
     d.select().from(assignments).where(inAny(assignments.phaseId, phaseIds)),
-    d.select().from(utility).where(inAny(utility.phaseId, phaseIds)),
+    d
+      .select({ use: stratUtility, item: throws })
+      .from(stratUtility)
+      .innerJoin(throws, eq(throws.id, stratUtility.throwId))
+      .where(inAny(stratUtility.phaseId, phaseIds)),
   ]);
 
-  const utilityIds = utilityRows.map((u) => u.id);
-  const lineupRows = utilityIds.length
+  const throwIds = [...new Set(utilityRows.map((u) => u.item.id))];
+  const lineupRows = throwIds.length
     ? await d
         .select()
         .from(lineups)
-        .where(inAny(lineups.utilityId, utilityIds))
+        .where(inAny(lineups.throwId, throwIds))
         .orderBy(asc(lineups.idx))
     : [];
 
@@ -127,10 +135,11 @@ export async function getStrat(id: string): Promise<FullStrat | null> {
       phase,
       assignments: assignmentRows.filter((a) => a.phaseId === phase.id),
       utility: utilityRows
-        .filter((u) => u.phaseId === phase.id)
-        .map((item) => ({
+        .filter((u) => u.use.phaseId === phase.id)
+        .map(({ use, item }) => ({
+          use,
           item,
-          lineups: lineupRows.filter((l) => l.utilityId === item.id),
+          lineups: lineupRows.filter((l) => l.throwId === item.id),
         })),
     })),
   };

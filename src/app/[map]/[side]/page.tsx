@@ -79,6 +79,7 @@ export default async function StratList({
           <Link href={`/${map}/ct`} className={side === "ct" ? "active" : ""}>
             CT side
           </Link>
+          <Link href={`/${map}/util`}>Utility</Link>
         </div>
 
         <h1>

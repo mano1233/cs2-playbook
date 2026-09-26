@@ -142,37 +142,76 @@ export const assignments = pgTable(
   (t) => [index("assignments_phase_idx").on(t.phaseId)],
 );
 
-export const utility = pgTable(
-  "utility",
+/**
+ * A throw is map-scoped and reusable: the geometry, the technique and the screenshots
+ * that show how to do it. The same heaven smoke appears in half a dozen A execs, and
+ * the screenshots are the expensive part to produce — so it is defined once here and
+ * referenced from wherever it is used.
+ *
+ * What is deliberately NOT here is who throws it or when. That varies per strat, which
+ * is why it lives on stratUtility below rather than on the throw itself.
+ */
+export const throws = pgTable(
+  "throws",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    phaseId: uuid("phase_id")
-      .notNull()
-      .references(() => phases.id, { onDelete: "cascade" }),
+    map: text("map").notNull(),
+    /** What the team calls it: "heaven smoke", "hut molly". */
+    name: text("name").notNull(),
     kind: utilityKind("kind").notNull(),
-    throwerSteamid64: text("thrower_steamid64").references(() => players.steamid64),
-    /** Where it lands. Required — a piece of utility without a target is not a strat. */
+    /** Where it lands. Required — a throw without a target is not a throw. */
     landX: real("land_x").notNull(),
     landY: real("land_y").notNull(),
     landZ: real("land_z"),
-    /** Where it is thrown from. Optional until someone works out the lineup. */
+    /** Where it is thrown from. Optional until someone works the lineup out. */
     throwX: real("throw_x"),
     throwY: real("throw_y"),
     throwZ: real("throw_z"),
     level: mapLevel("level").notNull().default("default"),
     technique: technique("technique").notNull().default("stand"),
     note: text("note"),
+    createdBy: text("created_by").references(() => players.steamid64),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("utility_phase_idx").on(t.phaseId)],
+  (t) => [
+    index("throws_map_idx").on(t.map),
+    // One name per map: two different "heaven smoke" entries is how a library turns
+    // back into the duplication it exists to prevent.
+    uniqueIndex("throws_map_name_uq").on(t.map, t.name),
+  ],
 );
+
+/** A throw used in one phase of one strat, by one player. */
+export const stratUtility = pgTable(
+  "strat_utility",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phaseId: uuid("phase_id")
+      .notNull()
+      .references(() => phases.id, { onDelete: "cascade" }),
+    throwId: uuid("throw_id")
+      .notNull()
+      // Restrict, not cascade: deleting a throw that strats depend on should fail
+      // loudly rather than quietly remove it from every exec that used it.
+      .references(() => throws.id, { onDelete: "restrict" }),
+    throwerSteamid64: text("thrower_steamid64").references(() => players.steamid64),
+    /** Strat-specific colour: "only if they smoke ramp first". */
+    note: text("note"),
+  },
+  (t) => [
+    index("strat_utility_phase_idx").on(t.phaseId),
+    index("strat_utility_throw_idx").on(t.throwId),
+  ],
+);
+
 
 export const lineups = pgTable(
   "lineups",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    utilityId: uuid("utility_id")
+    throwId: uuid("throw_id")
       .notNull()
-      .references(() => utility.id, { onDelete: "cascade" }),
+      .references(() => throws.id, { onDelete: "cascade" }),
     /** Object key in the cs2-playbook R2 bucket. The bucket stays private. */
     r2Key: text("r2_key").notNull(),
     shotKind: shotKind("shot_kind").notNull().default("stand"),
@@ -180,7 +219,7 @@ export const lineups = pgTable(
     uploadedBy: text("uploaded_by").references(() => players.steamid64),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("lineups_utility_idx").on(t.utilityId)],
+  (t) => [index("lineups_throw_idx").on(t.throwId)],
 );
 
 export const stratRevisions = pgTable(

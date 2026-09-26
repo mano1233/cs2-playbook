@@ -8,6 +8,20 @@
       "when": 1790022222574,
       "tag": "0000_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790413341972,
+      "tag": "0001_throws_library",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790413355563,
+      "tag": "0002_drop_old_utility",
+      "breakpoints": true
     }
   ]
 }
