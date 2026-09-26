@@ -80,6 +80,11 @@ export function StratEditor({
   const [selected, setSelected] = useState<Selection>(null);
   /** Which lineup is waiting for a radar click to set its spot. */
   const [placingFor, setPlacingFor] = useState<string | null>(null);
+  /**
+   * Which throw is waiting for a click to set where it *lands*. Imported throws arrive
+   * with screenshots and no position, so without this they could never be drawn.
+   */
+  const [placingLanding, setPlacingLanding] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "conflict" | "error">("idle");
   const [busy, setBusy] = useState<string | null>(null);
@@ -304,6 +309,12 @@ export function StratEditor({
     );
     if (!world) return;
 
+    if (placingLanding) {
+      void patchThrow(placingLanding, { landX: world.x, landY: world.y, level });
+      setPlacingLanding(null);
+      return;
+    }
+
     if (placingFor && selected?.kind === "use") {
       const use = phase.utility.find((u) => u.id === selected.id);
       if (use) void patchLineup(use.throwId, placingFor, { throwX: world.x, throwY: world.y, throwZ: null });
@@ -349,6 +360,7 @@ export function StratEditor({
 
       if (e.key === "Escape") {
         setPlacingFor(null);
+        setPlacingLanding(null);
         setShowLibrary(false);
         return setTool(null);
       }
@@ -416,7 +428,15 @@ export function StratEditor({
       assignments: p.assignments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
     }));
 
-  const usesOnLevel = (phase?.utility ?? []).filter((u) => throwsById.get(u.throwId)?.level === level);
+  const usesOnLevel = (phase?.utility ?? []).filter((u) => {
+    const t = throwsById.get(u.throwId);
+    return t?.level === level && t.landX !== null && t.landY !== null;
+  });
+  /** Used in this phase but not placed anywhere — surfaced rather than silently absent. */
+  const unplaced = (phase?.utility ?? []).filter((u) => {
+    const t = throwsById.get(u.throwId);
+    return t && (t.landX === null || t.landY === null);
+  });
   const alreadyUsed = new Set((phase?.utility ?? []).map((u) => u.throwId));
 
   return (
@@ -481,7 +501,9 @@ export function StratEditor({
           </button>
 
           <p className="hint">
-            {placingFor
+            {placingLanding
+              ? "Click where it lands."
+              : placingFor
               ? "Click where it is thrown from."
               : tool
                 ? "Armed — click the radar. It stays armed; Esc to stop."
@@ -511,6 +533,27 @@ export function StratEditor({
             </ul>
           ) : null}
 
+          {unplaced.length ? (
+            <>
+              <h3>Not placed</h3>
+              <p className="hint">Imported from screenshots. Say where each one lands.</p>
+              {unplaced.map((u) => {
+                const t = throwsById.get(u.throwId)!;
+                return (
+                  <button
+                    key={u.id}
+                    className={`tool ${placingLanding === t.id ? "armed" : ""}`}
+                    style={{ ["--tool-colour" as string]: UTIL_META[t.kind].colour }}
+                    onClick={() => setPlacingLanding(placingLanding === t.id ? null : t.id)}
+                  >
+                    <span className="tool-glyph">{UTIL_META[t.kind].glyph}</span>
+                    <span className="lib-name">{t.name}</span>
+                  </button>
+                );
+              })}
+            </>
+          ) : null}
+
           {cfg.levels.length > 1 ? (
             <>
               <h3>Level</h3>
@@ -533,14 +576,14 @@ export function StratEditor({
           <svg
             ref={svgRef}
             viewBox="0 0 1000 1000"
-            className={`radar ${tool || placingFor ? "armed" : ""}`}
+            className={`radar ${tool || placingFor || placingLanding ? "armed" : ""}`}
             onClick={(e) => void onRadarClick(e)}
           >
             <image href={`/api/radars/${map}/${level}`} x="0" y="0" width="1000" height="1000" />
 
             {usesOnLevel.map((use) => {
               const t = throwsById.get(use.throwId)!;
-              const land = worldToPixel(map, t.landX, t.landY)!;
+              const land = worldToPixel(map, t.landX!, t.landY!)!;
               const meta = UTIL_META[t.kind];
               const isSel = selected?.kind === "use" && selected.id === use.id;
               const positioned = t.lineups.filter((l) => l.throwX !== null);

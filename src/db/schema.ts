@@ -159,9 +159,16 @@ export const throws = pgTable(
     /** What the team calls it: "heaven smoke", "hut molly". */
     name: text("name").notNull(),
     kind: utilityKind("kind").notNull(),
-    /** Where it lands. Required — a throw without a target is not a throw. */
-    landX: real("land_x").notNull(),
-    landY: real("land_y").notNull(),
+    /**
+     * Where it lands. Nullable, which was not the original intent: a bulk import reads
+     * the throw's name and its screenshots out of the filenames, but a filename cannot
+     * say where anything is. A throw with two screenshots and no coordinates is still
+     * worth having — you can read the pictures — and refusing the import to preserve a
+     * tidy invariant would trade something useful for something merely neat. Unplaced
+     * throws are shown as such rather than drawn somewhere wrong.
+     */
+    landX: real("land_x"),
+    landY: real("land_y"),
     landZ: real("land_z"),
     level: mapLevel("level").notNull().default("default"),
     note: text("note"),

@@ -122,8 +122,9 @@ export async function createThrow(input: {
   map: string;
   name: string;
   kind: UtilKind;
-  landX: number;
-  landY: number;
+  /** Null for an imported throw: a filename cannot say where a grenade lands. */
+  landX: number | null;
+  landY: number | null;
   landZ?: number | null;
   level: string;
   createdBy: string;

@@ -36,6 +36,13 @@
       "when": 1790427629145,
       "tag": "0004_throw_has_many_origins",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790428648905,
+      "tag": "0005_unplaced_throws",
+      "breakpoints": true
     }
   ]
 }

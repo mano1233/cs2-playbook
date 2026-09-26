@@ -40,8 +40,9 @@ export interface EditorThrow {
   id: string;
   name: string;
   kind: UtilKind;
-  landX: number;
-  landY: number;
+  /** Null when imported: the screenshots are known, the position is not yet. */
+  landX: number | null;
+  landY: number | null;
   landZ: number | null;
   level: string;
   note: string | null;

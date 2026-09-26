@@ -48,7 +48,14 @@ export default async function UtilLibrary({ params }: { params: Promise<{ map: s
           <Link href={`/${map}/util`} className="active">Utility</Link>
         </div>
 
-        <h1>{mapDisplayName(map)} · utility</h1>
+        <div className="board-head">
+          <h1>{mapDisplayName(map)} · utility</h1>
+          <div className="board-actions">
+            <Link className="btn btn-primary" href={`/${map}/util/import`}>
+              Import screenshots
+            </Link>
+          </div>
+        </div>
         <p className="muted">
           Every throw on this map, with each way of landing it. They belong to the map,
           not to a strat — a strat references them, so the screenshots are taken once and
@@ -71,7 +78,10 @@ export default async function UtilLibrary({ params }: { params: Promise<{ map: s
 
             <div className="util-grid">
               {items.map(({ item, lineups, usedBy }) => {
-                const land = worldToPixel(map, item.landX, item.landY);
+                const land =
+                  item.landX !== null && item.landY !== null
+                    ? worldToPixel(map, item.landX, item.landY)
+                    : null;
                 const g = GLYPH[item.kind] ?? GLYPH.smoke!;
                 const positioned = lineups.filter((l) => l.lineup.throwX !== null);
 
@@ -79,6 +89,7 @@ export default async function UtilLibrary({ params }: { params: Promise<{ map: s
                   <article key={item.id} className="util-card">
                     <h3>{item.name}</h3>
                     <div className="util-meta">
+                      {land ? "" : "not placed yet · "}
                       {lineups.length} lineup{lineups.length === 1 ? "" : "s"}
                       {positioned.length !== lineups.length
                         ? ` · ${lineups.length - positioned.length} without an origin`
@@ -86,6 +97,7 @@ export default async function UtilLibrary({ params }: { params: Promise<{ map: s
                       {cfg.levels.length > 1 ? ` · ${item.level}` : ""}
                     </div>
 
+                    {land ? (
                     <svg viewBox="0 0 1000 1000" className="radar" style={{ marginTop: ".5rem" }}>
                       <image href={`/api/radars/${map}/${item.level}`} x="0" y="0" width="1000" height="1000" />
 
@@ -120,6 +132,12 @@ export default async function UtilLibrary({ params }: { params: Promise<{ map: s
                         </>
                       ) : null}
                     </svg>
+                    ) : (
+                      <p className="unplaced">
+                        Imported from screenshots — open a strat and place it on the radar
+                        to draw it.
+                      </p>
+                    )}
 
                     <ol className="lineup-list">
                       {lineups.map(({ lineup, shots }, i) => (

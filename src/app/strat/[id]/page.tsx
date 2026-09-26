@@ -106,8 +106,9 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                         />
                         {utility
                           .filter((u) => u.item.level === lid)
+                          .filter((u) => u.item.landX !== null && u.item.landY !== null)
                           .map(({ use, item, lineups }) => {
-                            const land = worldToPixel(strat.map, item.landX, item.landY)!;
+                            const land = worldToPixel(strat.map, item.landX!, item.landY!)!;
                             const g = GLYPH[item.kind] ?? GLYPH.smoke!;
                             const spots = lineups.filter((l) => l.lineup.throwX !== null);
                             return (
