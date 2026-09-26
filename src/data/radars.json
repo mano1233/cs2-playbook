@@ -1,0 +1,157 @@
+{
+  "de_ancient": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_ancient",
+    "posX": -2953.0,
+    "posY": 2164.0,
+    "scale": 5.0,
+    "size": 1024
+  },
+  "de_anubis": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_anubis",
+    "posX": -2796.0,
+    "posY": 3328.0,
+    "scale": 5.22,
+    "size": 1024
+  },
+  "de_cache": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_cache",
+    "posX": -2000.0,
+    "posY": 3250.0,
+    "scale": 5.5,
+    "size": 1024
+  },
+  "de_dust2": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_dust2",
+    "posX": -2476.0,
+    "posY": 3239.0,
+    "scale": 4.4,
+    "size": 1024
+  },
+  "de_inferno": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_inferno",
+    "posX": -2087.0,
+    "posY": 3870.0,
+    "scale": 4.9,
+    "size": 1024
+  },
+  "de_mirage": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_mirage",
+    "posX": -3230.0,
+    "posY": 1713.0,
+    "scale": 5.0,
+    "size": 1024
+  },
+  "de_nuke": {
+    "levels": [
+      {
+        "altitudeMax": 10000.0,
+        "altitudeMin": -495.0,
+        "id": "default"
+      },
+      {
+        "altitudeMax": -495.0,
+        "altitudeMin": -10000.0,
+        "id": "lower"
+      }
+    ],
+    "map": "de_nuke",
+    "posX": -3453.0,
+    "posY": 2887.0,
+    "scale": 7.0,
+    "size": 1024
+  },
+  "de_overpass": {
+    "levels": [
+      {
+        "altitudeMax": null,
+        "altitudeMin": null,
+        "id": "default"
+      }
+    ],
+    "map": "de_overpass",
+    "posX": -4831.0,
+    "posY": 1781.0,
+    "scale": 5.2,
+    "size": 1024
+  },
+  "de_train": {
+    "levels": [
+      {
+        "altitudeMax": 20000.0,
+        "altitudeMin": -50.0,
+        "id": "default"
+      },
+      {
+        "altitudeMax": -50.0,
+        "altitudeMin": -5000.0,
+        "id": "lower"
+      }
+    ],
+    "map": "de_train",
+    "posX": -2308.0,
+    "posY": 2078.0,
+    "scale": 4.082077,
+    "size": 1024
+  },
+  "de_vertigo": {
+    "levels": [
+      {
+        "altitudeMax": 20000.0,
+        "altitudeMin": 11700.0,
+        "id": "default"
+      },
+      {
+        "altitudeMax": 11700.0,
+        "altitudeMin": -10000.0,
+        "id": "lower"
+      }
+    ],
+    "map": "de_vertigo",
+    "posX": -3168.0,
+    "posY": 1762.0,
+    "scale": 4.0,
+    "size": 1024
+  }
+}
