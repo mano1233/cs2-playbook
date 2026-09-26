@@ -47,7 +47,9 @@ function Radar({ map, level, plants }: { map: string; level: string; plants: Pla
         viewBox="0 0 1000 1000"
         style={{ width: "100%", border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "#000" }}
       >
-        <image href={`/radars/${map}__${level}.png`} x="0" y="0" width="1000" height="1000" />
+        {/* The real route, not the local files: this page is also how the R2 proxy
+            gets exercised before anything depends on it. */}
+        <image href={`/api/radars/${map}/${level}`} x="0" y="0" width="1000" height="1000" />
         {onThisLevel.map((p, i) => {
           const px = worldToPixel(map, p.x, p.y);
           if (!px) return null;

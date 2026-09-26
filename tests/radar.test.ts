@@ -166,3 +166,29 @@ describe("levelForZ", () => {
     expect(levelForZ("de_nuke", -494)).toBe("default");
   });
 });
+
+describe("key validation for the R2 proxy", () => {
+  // The radar route concatenates `map` and `level` into an object key, so both must be
+  // checked against the config first. Unchecked, the proxy becomes a way to read the
+  // rest of the bucket -- the lineup screenshots included.
+  it.each([
+    "../lineups",
+    "..%2F..%2Flineups",
+    "de_nuke/../../lineups",
+    "",
+    "DE_NUKE",
+  ])("refuses %j as a map", (map) => {
+    expect(radarFor(map)).toBeNull();
+  });
+
+  it("only accepts levels the map actually declares", () => {
+    const nuke = radarFor("de_nuke")!;
+    const ids = nuke.levels.map((l) => l.id);
+    expect(ids).toContain("default");
+    expect(ids).toContain("lower");
+    expect(ids).not.toContain("../lineups");
+
+    // Mirage is flat: asking for its lower level must not resolve to anything.
+    expect(radarFor("de_mirage")!.levels.map((l) => l.id)).toEqual(["default"]);
+  });
+});
