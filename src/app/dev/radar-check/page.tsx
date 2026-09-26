@@ -41,7 +41,7 @@ function Radar({ map, level, plants }: { map: string; level: string; plants: Pla
       <figcaption
         style={{ fontFamily: "var(--mono)", fontSize: ".8rem", color: "var(--muted)", marginBottom: ".4rem" }}
       >
-        {map} · {level} · {onThisLevel.length} plant{onThisLevel.length === 1 ? "" : "s"}
+        {map} · {level} · {onThisLevel.length} plant{onThisLevel.length === 1 ? "" : "s"}{onThisLevel.length > 1 ? " (they stack on the sites — density is the point)" : ""}
       </figcaption>
       <svg
         viewBox="0 0 1000 1000"
@@ -52,10 +52,19 @@ function Radar({ map, level, plants }: { map: string; level: string; plants: Pla
           const px = worldToPixel(map, p.x, p.y);
           if (!px) return null;
           return (
-            <g key={i}>
-              <circle cx={px.fx * 1000} cy={px.fy * 1000} r="9" fill="none" stroke="#17a398" strokeWidth="3" />
-              <circle cx={px.fx * 1000} cy={px.fy * 1000} r="2.5" fill="#17a398" />
-            </g>
+            // Small and translucent on purpose: plants pile up on the two sites, and
+            // fat rings smear 40-odd of them into one blob that reads as noise rather
+            // than as the tight cluster it actually is.
+            <circle
+              key={i}
+              cx={px.fx * 1000}
+              cy={px.fy * 1000}
+              r="4"
+              fill="#17a398"
+              fillOpacity="0.55"
+              stroke="#0b3d3a"
+              strokeWidth="0.8"
+            />
           );
         })}
       </svg>
