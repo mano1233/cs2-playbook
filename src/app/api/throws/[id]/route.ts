@@ -54,18 +54,33 @@ export async function PATCH(
     patch.note = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
   }
 
-  // Landing point can move but cannot be removed: a throw with no target is not a throw.
+  // Write once. A throw is a precise thing: the grenade lands where it lands, and a
+  // lineup built around it is only correct for that spot. Letting the target drift
+  // silently invalidates every lineup and every screenshot hanging off it, without
+  // anything looking wrong. If it should land somewhere else, that is a different
+  // throw.
+  //
+  // Unset is not "set to nothing": an imported throw arrives with no position because a
+  // filename cannot carry one, so the first write is allowed and only later ones are
+  // refused.
   if (num(body.landX) !== null && num(body.landY) !== null) {
+    if (current.landX !== null || current.landY !== null) {
+      return Response.json(
+        {
+          error: "where a throw lands is fixed once set — make a new throw instead",
+          landX: current.landX,
+          landY: current.landY,
+        },
+        { status: 409 },
+      );
+    }
     patch.landX = num(body.landX);
     patch.landY = num(body.landY);
     patch.landZ = num(body.landZ);
   }
-  // The origin is genuinely optional, so an explicit null clears it.
-  if ("throwX" in body) {
-    patch.throwX = num(body.throwX);
-    patch.throwY = num(body.throwY);
-    patch.throwZ = num(body.throwZ);
-  }
+  // No origin here: it moved onto the lineup when a throw became something you can
+  // land several ways. This route used to write throws.throw_x, a column that no longer
+  // exists — `patch` is loosely typed, so nothing caught it until the table was read.
 
   if (Object.keys(patch).length === 0) return Response.json({ ok: true, throw: current });
 

@@ -30,6 +30,12 @@ import type {
 
 const TECHNIQUES: Technique[] = ["stand", "jump", "run_jump", "walk", "run"];
 const SHOT_KINDS: ShotKind[] = ["stand", "crosshair", "result"];
+/** "stand" is what the column says; "location" is what the team calls it. */
+const SHOT_LABEL: Record<ShotKind, string> = {
+  stand: "location",
+  crosshair: "crosshair",
+  result: "result",
+};
 
 const UTIL_LABEL: Record<UtilKind, string> = {
   smoke: "Smoke",
@@ -198,21 +204,20 @@ function LineupCard({
         >
           {TECHNIQUES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
         </select>
-        <button className={`btn tiny ${placing ? "btn-primary" : ""}`} onClick={onPlaceOrigin}>
-          {placing ? "click radar…" : lineup.throwX !== null ? "move spot" : "set spot"}
-        </button>
-        {lineup.throwX !== null ? (
-          <button
-            className="btn tiny"
-            onClick={() => onPatch({ throwX: null, throwY: null, throwZ: null })}
-          >
-            clear
+        {lineup.throwX === null ? (
+          <button className={`btn tiny ${placing ? "btn-primary" : ""}`} onClick={onPlaceOrigin}>
+            {placing ? "click radar…" : "set spot"}
           </button>
-        ) : null}
+        ) : (
+          <span className="fixed-note">spot fixed</span>
+        )}
       </div>
 
       {lineup.throwX === null ? (
-        <p className="hint">No spot yet — nothing to draw a line from.</p>
+        <p className="hint">
+          No spot yet. Set it once — a lineup is the spot, so moving it later would leave
+          the screenshots showing somewhere else.
+        </p>
       ) : null}
 
       <div
@@ -229,7 +234,7 @@ function LineupCard({
               className={`btn tiny ${shotKind === k ? "btn-primary" : ""}`}
               onClick={() => setShotKind(k)}
             >
-              {k}
+              {SHOT_LABEL[k]}
             </button>
           ))}
         </div>
@@ -251,7 +256,7 @@ function LineupCard({
             <figure key={s.id}>
               <img src={`/api/shots/${s.id}`} alt={s.shotKind} />
               <figcaption>
-                {s.shotKind}
+                {SHOT_LABEL[s.shotKind]}
                 <button className="shot-x" onClick={() => onDeleteShot(s.id)} aria-label="delete shot">×</button>
               </figcaption>
             </figure>

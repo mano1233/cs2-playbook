@@ -30,9 +30,9 @@ would block real work to prevent a hypothetical.
 
 ## Deployed image lags the repo
 
-`playbook.meerkat-cirius.ts.net` runs 0.2.0, which predates the radar route, the map
-grid, the strat list, the editor and the throw library. Shipping needs a `VERSION` bump
-here and a matching `image_tag` in `terraform/modules/cs2-playbook/variables.tf`.
+`playbook.meerkat-cirius.ts.net` runs 0.5.0, which predates write-once positions and
+capturing a complete util at creation. Shipping needs a `VERSION` bump here and a
+matching `image_tag` in `terraform/modules/cs2-playbook/variables.tf`.
 
 ## Radar images are uploaded by hand
 

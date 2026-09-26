@@ -21,7 +21,8 @@ export async function PATCH(
 
   const { id } = await params;
   if (!UUID.test(id)) return Response.json({ error: "bad id" }, { status: 400 });
-  if (!(await getLineup(id))) return Response.json({ error: "no such lineup" }, { status: 404 });
+  const current = await getLineup(id);
+  if (!current) return Response.json({ error: "no such lineup" }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ error: "bad json" }, { status: 400 });
@@ -35,9 +36,21 @@ export async function PATCH(
     patch.note =
       typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
   }
-  // The origin is the point of a lineup, but it is legitimately unset until someone
-  // works it out, so an explicit null clears it.
-  if ("throwX" in body) {
+  // Write once, for the same reason the landing point is. A lineup *is* the spot you
+  // stand on; move it and the screenshots showing that spot are of somewhere else, with
+  // nothing to indicate it. Another spot for the same landing point is another lineup —
+  // which the model already supports, and is the honest way to record it.
+  if ("throwX" in body && num(body.throwX) !== null) {
+    if (current.throwX !== null || current.throwY !== null) {
+      return Response.json(
+        {
+          error: "where a lineup is thrown from is fixed once set — add another lineup instead",
+          throwX: current.throwX,
+          throwY: current.throwY,
+        },
+        { status: 409 },
+      );
+    }
     patch.throwX = num(body.throwX);
     patch.throwY = num(body.throwY);
     patch.throwZ = num(body.throwZ);

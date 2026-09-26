@@ -11,8 +11,12 @@ import { radarFor } from "@/lib/radar";
 import {
   UTIL_KINDS,
   type UtilKind,
+  TECHNIQUES,
+  type Technique,
+  createLineup,
   createThrow,
   getThrowFull,
+  updateLineup,
   listThrows,
   nextThrowName,
   serialiseThrow,
@@ -63,6 +67,11 @@ export async function POST(request: Request) {
       : await nextThrowName(map, kind);
 
   try {
+    // Both positions are captured here, at creation, because both are write-once: a
+    // throw made without its spot would be permanently half-formed. The one exception
+    // is import, which has no positions at all to give and fills them in later.
+    const lineupIn = (body.lineup ?? null) as Record<string, unknown> | null;
+
     const row = await createThrow({
       map,
       name,
@@ -73,6 +82,26 @@ export async function POST(request: Request) {
       level,
       createdBy: auth.player.steamid64,
     });
+    if (lineupIn) {
+      const lineup = await createLineup({
+        throwId: row.id,
+        name: typeof lineupIn.name === "string" && lineupIn.name.trim()
+          ? lineupIn.name.trim().slice(0, 80)
+          : null,
+        createdBy: auth.player.steamid64,
+      });
+      const tx = typeof lineupIn.throwX === "number" ? lineupIn.throwX : null;
+      const ty = typeof lineupIn.throwY === "number" ? lineupIn.throwY : null;
+      await updateLineup(lineup.id, {
+        throwX: tx,
+        throwY: ty,
+        throwZ: typeof lineupIn.throwZ === "number" ? lineupIn.throwZ : null,
+        technique: (TECHNIQUES as string[]).includes(lineupIn.technique as string)
+          ? (lineupIn.technique as Technique)
+          : "stand",
+      });
+    }
+
     const full = await getThrowFull(row.id);
     return Response.json({ ok: true, throw: serialiseThrow(full!) });
   } catch (err) {

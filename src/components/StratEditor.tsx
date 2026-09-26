@@ -33,6 +33,7 @@ import {
   type EditorThrow,
   type EditorUse,
   type ShotKind,
+  type Technique,
   UTIL_META,
   type UtilKind,
 } from "./editor-types";
@@ -46,6 +47,33 @@ export type {
 } from "./editor-types";
 
 type Tool = UtilKind | "player" | null;
+
+/**
+ * What a piece of utility is made of, in the order it is captured: the kind, the two
+ * positions, then the three screenshots. `result` is the one optional part — it shows
+ * what the grenade did, which is nice to have, while the other two are what a player
+ * actually needs to reproduce the throw.
+ */
+type PendingUtil = {
+  kind: UtilKind;
+  name: string;
+  landX: number;
+  landY: number;
+  /** Undefined until the second radar click. */
+  throwX?: number;
+  throwY?: number;
+  technique: Technique;
+  shots: Partial<Record<ShotKind, File>>;
+};
+
+const SHOT_LABEL: Record<ShotKind, string> = {
+  stand: "location",
+  crosshair: "crosshair",
+  result: "result",
+};
+/** Held back until the end so pasting fills location, then crosshair, then result. */
+const SHOT_ORDER: ShotKind[] = ["stand", "crosshair", "result"];
+const TECHNIQUES: Technique[] = ["stand", "jump", "run_jump", "walk", "run"];
 type Selection = { kind: "use" | "assignment"; id: string } | null;
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -86,6 +114,12 @@ export function StratEditor({
    */
   const [placingLanding, setPlacingLanding] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
+  /**
+   * A util being built. Both positions are write-once, so they are gathered before
+   * anything is created rather than saved half-formed and corrected after — there is no
+   * correcting them.
+   */
+  const [pending, setPending] = useState<PendingUtil | null>(null);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "conflict" | "error">("idle");
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -322,6 +356,12 @@ export function StratEditor({
       return;
     }
 
+    // Second click of a creation: the spot it is thrown from.
+    if (pending && pending.throwX === undefined) {
+      setPending({ ...pending, throwX: world.x, throwY: world.y });
+      return;
+    }
+
     if (!tool) return;
 
     if (tool === "player") {
@@ -337,18 +377,58 @@ export function StratEditor({
       return;
     }
 
-    // Placing utility creates a throw in the map's library and references it. The name
-    // is auto-assigned so nothing stops to ask before the marker lands.
+    // First click of a creation: where it lands. Nothing is written yet.
+    setPending({
+      kind: tool,
+      name: "",
+      landX: world.x,
+      landY: world.y,
+      technique: "stand",
+      shots: {},
+    });
+  }
+
+  async function commitPending(p: PendingUtil) {
     const res = await fetch("/api/throws", {
       method: "POST",
       headers,
-      body: JSON.stringify({ map, kind: tool, landX: world.x, landY: world.y, level }),
+      body: JSON.stringify({
+        map,
+        kind: p.kind,
+        name: p.name.trim() || undefined,
+        landX: p.landX,
+        landY: p.landY,
+        level,
+        lineup:
+          p.throwX !== undefined
+            ? { throwX: p.throwX, throwY: p.throwY, technique: p.technique }
+            : undefined,
+      }),
     });
     if (!res.ok) return;
     const { throw: created } = (await res.json()) as { throw: EditorThrow };
     const withLineups = { ...created, lineups: created.lineups ?? [] };
     setLibrary((lib) => [...lib, withLineups]);
     useThrow(withLineups.id);
+    setPending(null);
+    setTool(null);
+
+    // The screenshots are uploaded after the row exists, since they hang off the
+    // lineup's id. Sequentially: three CS2 PNGs re-encoding in parallel makes the
+    // radar stutter, and nothing is waiting on them.
+    const lineupId = withLineups.lineups[0]?.id;
+    if (!lineupId) return;
+    for (const kind of SHOT_ORDER) {
+      const file = p.shots[kind];
+      if (file) await uploadShot(withLineups.id, lineupId, file, kind);
+    }
+  }
+
+  /** Pasting into the creation panel fills the slots in order. */
+  function takePendingShot(p: PendingUtil, file: File, kind?: ShotKind) {
+    const slot = kind ?? SHOT_ORDER.find((k) => !p.shots[k]);
+    if (!slot) return;
+    setPending({ ...p, shots: { ...p.shots, [slot]: file } });
   }
 
   // ---- keyboard ----------------------------------------------------------
@@ -359,6 +439,7 @@ export function StratEditor({
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
 
       if (e.key === "Escape") {
+        setPending(null);
         setPlacingFor(null);
         setPlacingLanding(null);
         setShowLibrary(false);
@@ -576,7 +657,7 @@ export function StratEditor({
           <svg
             ref={svgRef}
             viewBox="0 0 1000 1000"
-            className={`radar ${tool || placingFor || placingLanding ? "armed" : ""}`}
+            className={`radar ${tool || placingFor || placingLanding || pending ? "armed" : ""}`}
             onClick={(e) => void onRadarClick(e)}
           >
             <image href={`/api/radars/${map}/${level}`} x="0" y="0" width="1000" height="1000" />
@@ -629,6 +710,32 @@ export function StratEditor({
               );
             })}
 
+            {pending ? (() => {
+              const land = worldToPixel(map, pending.landX, pending.landY)!;
+              const from =
+                pending.throwX !== undefined
+                  ? worldToPixel(map, pending.throwX, pending.throwY!)
+                  : null;
+              const meta = UTIL_META[pending.kind];
+              return (
+                <g className="ghost">
+                  {from ? (
+                    <>
+                      <line
+                        x1={from.fx * 1000} y1={from.fy * 1000}
+                        x2={land.fx * 1000} y2={land.fy * 1000}
+                        stroke={meta.colour} strokeWidth="2" strokeDasharray="6 5" opacity="0.8"
+                      />
+                      <circle cx={from.fx * 1000} cy={from.fy * 1000} r="11"
+                        fill="none" stroke={meta.colour} strokeWidth="3" />
+                    </>
+                  ) : null}
+                  <circle cx={land.fx * 1000} cy={land.fy * 1000} r="14"
+                    fill={meta.colour} fillOpacity="0.5" stroke="#fff" strokeWidth="2" strokeDasharray="4 3" />
+                </g>
+              );
+            })() : null}
+
             {(phase?.assignments ?? [])
               .filter((a) => a.level === level && a.x !== null && a.y !== null)
               .map((a) => {
@@ -650,7 +757,121 @@ export function StratEditor({
         </div>
 
         <aside className="inspector">
-          {selectedUse && selectedThrow ? (
+          {pending ? (() => {
+            const placed = pending.throwX !== undefined;
+            const missing = (["stand", "crosshair"] as ShotKind[]).filter((k) => !pending.shots[k]);
+            return (
+              <div
+                className="pending-panel"
+                onPaste={(e) => {
+                  const f = Array.from(e.clipboardData.files).find((x) => x.type.startsWith("image/"));
+                  if (f) takePendingShot(pending, f);
+                }}
+              >
+                <h3>New {UTIL_META[pending.kind].label.toLowerCase()}</h3>
+                <p className="shared-note">
+                  Both positions are fixed once saved. Get them right now — to change one
+                  later you make another throw, or another lineup.
+                </p>
+
+                <ol className="pending-steps">
+                  <li className="done">where it lands</li>
+                  <li className={placed ? "done" : "now"}>
+                    {placed ? "where it is thrown from" : "click where it is thrown from"}
+                  </li>
+                </ol>
+
+                <label>
+                  <span>Name</span>
+                  <input
+                    autoFocus
+                    value={pending.name}
+                    placeholder="heaven smoke"
+                    onChange={(e) => setPending({ ...pending, name: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && placed && void commitPending(pending)}
+                  />
+                </label>
+
+                <label>
+                  <span>Technique</span>
+                  <select
+                    value={pending.technique}
+                    onChange={(e) => setPending({ ...pending, technique: e.target.value as Technique })}
+                  >
+                    {TECHNIQUES.map((t) => (
+                      <option key={t} value={t}>{t.replace("_", " ")}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <span className="field-label">Screenshots</span>
+                <p className="hint">
+                  Where you stand and what you aim at — a lineup is not reproducible
+                  without both. Paste to fill them in order.
+                </p>
+                <div className="shot-slots">
+                  {SHOT_ORDER.map((k) => {
+                    const file = pending.shots[k];
+                    return (
+                      <div key={k} className={`shot-slot ${file ? "filled" : ""}`}>
+                        <span className="slot-name">
+                          {SHOT_LABEL[k]}
+                          {k === "result" ? <em> optional</em> : null}
+                        </span>
+                        {file ? (
+                          <>
+                            <span className="slot-file">{formatBytes(file.size)}</span>
+                            <button
+                              className="shot-x"
+                              aria-label={`remove ${SHOT_LABEL[k]}`}
+                              onClick={() => {
+                                const { [k]: _drop, ...rest } = pending.shots;
+                                setPending({ ...pending, shots: rest });
+                              }}
+                            >
+                              ×
+                            </button>
+                          </>
+                        ) : (
+                          <label className="pick">
+                            choose
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) takePendingShot(pending, f, k);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="throw-buttons">
+                  <button
+                    className="btn btn-primary"
+                    disabled={!placed}
+                    onClick={() => void commitPending(pending)}
+                  >
+                    {missing.length ? "Create anyway" : "Create"}
+                  </button>
+                  <button className="btn" onClick={() => setPending(null)}>Cancel</button>
+                </div>
+                {!placed ? (
+                  <p className="hint">Click the radar once more to say where it is thrown from.</p>
+                ) : missing.length ? (
+                  <p className="hint">
+                    No {missing.map((k) => SHOT_LABEL[k]).join(" or ")} shot yet. Screenshots
+                    can be added later, unlike the positions.
+                  </p>
+                ) : null}
+              </div>
+            );
+          })() : selectedUse && selectedThrow ? (
             <ThrowInspector
               use={selectedUse}
               item={selectedThrow}
