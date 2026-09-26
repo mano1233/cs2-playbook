@@ -119,3 +119,12 @@ export function levelForZ(map: string, z: number | null | undefined): LevelId {
 export function hasMultipleLevels(map: string): boolean {
   return (radarFor(map)?.levels.length ?? 0) > 1;
 }
+
+/**
+ * "de_nuke" -> "Nuke". The stored name keeps the de_ prefix because that is what the
+ * demos and cs2-analyzer use; only the display drops it.
+ */
+export function mapDisplayName(map: string): string {
+  const bare = map.replace(/^de_/, "").replace(/_/g, " ");
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
+}

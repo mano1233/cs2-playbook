@@ -69,3 +69,71 @@ h1 { font-size: 1.6rem; }
 
 .login { max-width: 460px; margin: 12vh auto; padding: 0 1rem; text-align: center; }
 .login .card { text-align: left; }
+
+/* --- breadcrumbs ------------------------------------------------------- */
+.crumb { display: inline-flex; gap: .6rem; align-items: center; font-size: .95rem; }
+.crumb-sep { color: var(--line); }
+.crumb span:not(.crumb-sep) { color: var(--ink); }
+
+/* --- map grid ---------------------------------------------------------- */
+.map-grid {
+  display: grid; gap: .9rem; margin-top: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+.map-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 1rem;
+}
+.map-card h2 { margin: 0; font-size: 1.15rem; }
+.map-card code { font-family: var(--mono); font-size: .75rem; }
+.side-links { display: flex; gap: .5rem; margin-top: .8rem; }
+.side {
+  flex: 1; display: flex; align-items: baseline; justify-content: space-between;
+  padding: .5rem .7rem; border: 1px solid var(--line); border-radius: var(--radius);
+  text-decoration: none; color: var(--ink);
+}
+.side:hover { border-color: var(--accent); text-decoration: none; }
+.side-name { font-family: var(--display); font-weight: 600; font-size: .85rem; letter-spacing: .04em; }
+.side-t .side-name { color: var(--warn); }
+.side-ct .side-name { color: #6ba4d9; }
+.side-count { font-family: var(--mono); font-size: .9rem; color: var(--muted); }
+
+/* --- side switch ------------------------------------------------------- */
+.side-switch { display: flex; gap: .4rem; margin-bottom: 1.2rem; }
+.side-switch a {
+  padding: .4rem .9rem; border: 1px solid var(--line); border-radius: var(--radius);
+  color: var(--muted); font-size: .9rem;
+}
+.side-switch a:hover { text-decoration: none; border-color: var(--accent); }
+.side-switch a.active { color: var(--ink); border-color: var(--accent); background: var(--panel); }
+
+/* --- strat list -------------------------------------------------------- */
+.strat-list { list-style: none; margin: 0 0 2rem; padding: 0; }
+.strat-list li + li { margin-top: .4rem; }
+.strat-row {
+  display: grid; align-items: center; gap: .8rem;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  padding: .7rem .9rem; background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink);
+}
+.strat-row:hover { border-color: var(--accent); text-decoration: none; }
+.strat-name { font-weight: 600; }
+.strat-meta, .strat-author { font-size: .82rem; font-family: var(--mono); }
+.tag {
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
+  padding: .15rem .45rem; border-radius: 3px; border: 1px solid var(--line); color: var(--muted);
+}
+.tag-drilled { color: var(--accent); border-color: var(--accent); }
+.tag-experimental { color: var(--warn); border-color: var(--warn); }
+.tag-retired { opacity: .6; }
+
+/* --- new strat --------------------------------------------------------- */
+.new-strat h2 { font-size: 1rem; }
+.new-strat-form { display: flex; flex-wrap: wrap; gap: .8rem; align-items: flex-end; }
+.new-strat-form label { display: flex; flex-direction: column; gap: .3rem; flex: 1 1 10rem; }
+.new-strat-form span { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+input, select, textarea {
+  background: var(--ground); color: var(--ink); font: inherit; font-size: .92rem;
+  border: 1px solid var(--line); border-radius: var(--radius); padding: .45rem .6rem;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }

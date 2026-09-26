@@ -14,3 +14,4 @@ coverage/
 
 # Radar images live in R2, never in git — they are Valve assets.
 public/radars/
+.devsession
