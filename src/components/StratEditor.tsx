@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_LEVEL, fractionToWorld, radarFor, worldToPixel } from "@/lib/radar";
+import { convertScreenshot, formatBytes } from "@/lib/convert-image";
 import { ThrowInspector } from "./ThrowInspector";
 import {
   ACTIONS,
@@ -82,6 +83,7 @@ export function StratEditor({
   const [showLibrary, setShowLibrary] = useState(false);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "conflict" | "error">("idle");
   const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const dirty = useRef(false);
@@ -225,8 +227,16 @@ export function StratEditor({
     async (throwId: string, lineupId: string, file: File, shotKind: ShotKind) => {
       setBusy(throwId);
       try {
+        // Re-encoded in the browser first: a CS2 PNG is ~3 MB and the same picture as
+        // WebP is a tenth of that, which is the difference between a lineup opening
+        // instantly on a phone and not.
+        const { file: sending, before, after, converted } = await convertScreenshot(file);
+        if (converted) {
+          setNote(`${formatBytes(before)} → ${formatBytes(after)}`);
+          setTimeout(() => setNote(null), 4000);
+        }
         const form = new FormData();
-        form.set("file", file);
+        form.set("file", sending);
         form.set("shotKind", shotKind);
         const res = await fetch(`/api/lineups/${lineupId}/shots`, {
           method: "POST",
@@ -441,7 +451,7 @@ export function StratEditor({
           </select>
         </label>
         <div className="save-state" data-state={saving}>
-          {saving === "saving" ? "saving…" : saving === "saved" ? "saved" : saving === "error" ? "save failed" : ""}
+          {note ?? (saving === "saving" ? "saving…" : saving === "saved" ? "saved" : saving === "error" ? "save failed" : "")}
         </div>
       </div>
 
