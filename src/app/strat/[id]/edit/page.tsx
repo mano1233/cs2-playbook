@@ -8,7 +8,7 @@ import { requirePlayer, sessionToken } from "@/lib/auth";
 import { mapDisplayName, radarFor } from "@/lib/radar";
 import { csrfTokenFor } from "@/lib/session";
 import { getStrat } from "@/lib/strats";
-import { listThrows } from "@/lib/throws";
+import { listThrows, serialiseThrow } from "@/lib/throws";
 
 export const dynamic = "force-dynamic";
 
@@ -58,22 +58,7 @@ export default async function EditStrat({ params }: { params: Promise<{ id: stri
     })),
   };
 
-  const library = (await listThrows(full.strat.map)).map(({ item, lineups, usedBy }) => ({
-    id: item.id,
-    name: item.name,
-    kind: item.kind,
-    landX: item.landX,
-    landY: item.landY,
-    landZ: item.landZ,
-    throwX: item.throwX,
-    throwY: item.throwY,
-    throwZ: item.throwZ,
-    level: item.level,
-    technique: item.technique,
-    note: item.note,
-    lineups: lineups.map((l) => ({ id: l.id, shotKind: l.shotKind, idx: l.idx })),
-    usedBy,
-  }));
+  const library = (await listThrows(full.strat.map)).map(serialiseThrow);
 
   // Handed down from the server rather than read from the cookie: the token is derived
   // from the session, so the server already has it, and this works even in a context

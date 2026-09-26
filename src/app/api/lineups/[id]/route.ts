@@ -1,54 +1,50 @@
 /**
- * Serves and deletes a lineup screenshot.
+ * Editing one lineup — where you stand and how you throw.
  *
- * The key is looked up from the database by id rather than built from the request, so
- * there is no path for a caller to name an object. That is a stronger guarantee than
- * validating a key would be: the only reachable objects are rows that exist.
+ * Shared, like the throw it belongs to: fixing a lineup fixes it in every strat that
+ * uses the throw, which is the whole point of the library.
  */
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { lineups } from "@/db/schema";
-import { requirePlayer, requireWriter } from "@/lib/auth";
-import { deleteObject, getObject } from "@/lib/r2";
+import { requireWriter } from "@/lib/auth";
+import { TECHNIQUES, type Technique, deleteLineup, getLineup, updateLineup } from "@/lib/throws";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-async function lookup(id: string) {
-  if (!UUID.test(id)) return null;
-  const [row] = await db().select().from(lineups).where(eq(lineups.id, id)).limit(1);
-  return row ?? null;
-}
-
-export async function GET(
-  _request: Request,
+export async function PATCH(
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requirePlayer();
+  const auth = await requireWriter();
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
 
-  const row = await lookup((await params).id);
-  if (!row) return Response.json({ error: "no such lineup" }, { status: 404 });
+  const { id } = await params;
+  if (!UUID.test(id)) return Response.json({ error: "bad id" }, { status: 400 });
+  if (!(await getLineup(id))) return Response.json({ error: "no such lineup" }, { status: 404 });
 
-  const object = await getObject(row.r2Key);
-  if (!object) {
-    // Row without bytes: worth distinguishing, because it means an upload half
-    // succeeded rather than that the id is wrong.
-    return Response.json({ error: "image missing from storage" }, { status: 404 });
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body) return Response.json({ error: "bad json" }, { status: 400 });
+
+  const patch: Record<string, unknown> = {};
+  if (typeof body.name === "string") patch.name = body.name.trim().slice(0, 80) || null;
+  if ((TECHNIQUES as string[]).includes(body.technique as string)) {
+    patch.technique = body.technique as Technique;
+  }
+  if ("note" in body) {
+    patch.note =
+      typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+  }
+  // The origin is the point of a lineup, but it is legitimately unset until someone
+  // works it out, so an explicit null clears it.
+  if ("throwX" in body) {
+    patch.throwX = num(body.throwX);
+    patch.throwY = num(body.throwY);
+    patch.throwZ = num(body.throwZ);
   }
 
-  return new Response(object.body, {
-    headers: {
-      "content-type": object.contentType,
-      ...(object.contentLength ? { "content-length": String(object.contentLength) } : {}),
-      "cache-control": "private, max-age=604800, immutable",
-      // Belt and braces: even though the bytes are sniffed on upload, tell the browser
-      // not to second-guess the type, and forbid scripts if one ever got through.
-      "x-content-type-options": "nosniff",
-      "content-security-policy": "default-src 'none'; img-src 'self'; sandbox",
-    },
-  });
+  const row = await updateLineup(id, patch);
+  return Response.json({ ok: true, lineup: row });
 }
 
 export async function DELETE(
@@ -58,13 +54,10 @@ export async function DELETE(
   const auth = await requireWriter();
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
 
-  const row = await lookup((await params).id);
-  if (!row) return Response.json({ error: "no such lineup" }, { status: 404 });
-
-  // Row first: an orphaned object costs a few KB, whereas a row pointing at bytes that
-  // are gone shows up as a broken image in the card view mid-match.
-  await db().delete(lineups).where(eq(lineups.id, row.id));
-  await deleteObject(row.r2Key).catch(() => {});
-
+  const { id } = await params;
+  if (!UUID.test(id)) return Response.json({ error: "bad id" }, { status: 400 });
+  // Shots cascade with it: a screenshot of a lineup that no longer exists has nothing
+  // to attach to.
+  await deleteLineup(id);
   return Response.json({ ok: true });
 }

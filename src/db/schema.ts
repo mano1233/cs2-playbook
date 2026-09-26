@@ -163,12 +163,7 @@ export const throws = pgTable(
     landX: real("land_x").notNull(),
     landY: real("land_y").notNull(),
     landZ: real("land_z"),
-    /** Where it is thrown from. Optional until someone works the lineup out. */
-    throwX: real("throw_x"),
-    throwY: real("throw_y"),
-    throwZ: real("throw_z"),
     level: mapLevel("level").notNull().default("default"),
-    technique: technique("technique").notNull().default("stand"),
     note: text("note"),
     createdBy: text("created_by").references(() => players.steamid64),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -212,6 +207,33 @@ export const lineups = pgTable(
     throwId: uuid("throw_id")
       .notNull()
       .references(() => throws.id, { onDelete: "cascade" }),
+    /** What to call this way of throwing it: "from spawn", "from T ramp". */
+    name: text("name"),
+    /** Where you stand. This is what makes a lineup a lineup. */
+    throwX: real("throw_x"),
+    throwY: real("throw_y"),
+    throwZ: real("throw_z"),
+    technique: technique("technique").notNull().default("stand"),
+    note: text("note"),
+    idx: integer("idx").notNull().default(0),
+    createdBy: text("uploaded_by").references(() => players.steamid64),
+    createdAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("lineups_throw_idx").on(t.throwId)],
+);
+
+/**
+ * The screenshots for one lineup. A lineup needs several — where to stand, what the
+ * crosshair looks like, where it lands — so they hang off the lineup rather than off
+ * the throw.
+ */
+export const lineupShots = pgTable(
+  "lineup_shots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lineupId: uuid("lineup_id")
+      .notNull()
+      .references(() => lineups.id, { onDelete: "cascade" }),
     /** Object key in the cs2-playbook R2 bucket. The bucket stays private. */
     r2Key: text("r2_key").notNull(),
     shotKind: shotKind("shot_kind").notNull().default("stand"),
@@ -219,7 +241,7 @@ export const lineups = pgTable(
     uploadedBy: text("uploaded_by").references(() => players.steamid64),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("lineups_throw_idx").on(t.throwId)],
+  (t) => [index("lineup_shots_lineup_idx").on(t.lineupId)],
 );
 
 export const stratRevisions = pgTable(

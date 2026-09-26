@@ -16,6 +16,7 @@ import {
   strats,
   stratRevisions,
   stratUtility,
+  lineupShots,
   throws,
 } from "@/db/schema";
 
@@ -90,9 +91,13 @@ export interface FullStrat {
     utility: {
       /** The per-strat row: who throws it here, and any strat-specific note. */
       use: typeof stratUtility.$inferSelect;
-      /** The shared throw it points at — geometry, technique, name. */
+      /** The shared throw it points at: where it lands, and what it is called. */
       item: typeof throws.$inferSelect;
-      lineups: (typeof lineups.$inferSelect)[];
+      /** Every way to land it, each with its own spot and screenshots. */
+      lineups: {
+        lineup: typeof lineups.$inferSelect;
+        shots: (typeof lineupShots.$inferSelect)[];
+      }[];
     }[];
   }[];
 }
@@ -129,6 +134,14 @@ export async function getStrat(id: string): Promise<FullStrat | null> {
         .orderBy(asc(lineups.idx))
     : [];
 
+  const shotRows = lineupRows.length
+    ? await d
+        .select()
+        .from(lineupShots)
+        .where(inAny(lineupShots.lineupId, lineupRows.map((l) => l.id)))
+        .orderBy(asc(lineupShots.idx))
+    : [];
+
   return {
     strat: row,
     phases: phaseRows.map((phase) => ({
@@ -139,7 +152,12 @@ export async function getStrat(id: string): Promise<FullStrat | null> {
         .map(({ use, item }) => ({
           use,
           item,
-          lineups: lineupRows.filter((l) => l.throwId === item.id),
+          lineups: lineupRows
+            .filter((l) => l.throwId === item.id)
+            .map((lineup) => ({
+              lineup,
+              shots: shotRows.filter((sh) => sh.lineupId === lineup.id),
+            })),
         })),
     })),
   };

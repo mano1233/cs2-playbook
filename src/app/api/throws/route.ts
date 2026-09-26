@@ -12,8 +12,10 @@ import {
   UTIL_KINDS,
   type UtilKind,
   createThrow,
+  getThrowFull,
   listThrows,
   nextThrowName,
+  serialiseThrow,
 } from "@/lib/throws";
 
 export const dynamic = "force-dynamic";
@@ -26,24 +28,7 @@ export async function GET(request: Request) {
   if (!radarFor(map)) return Response.json({ error: "unknown map" }, { status: 404 });
 
   const rows = await listThrows(map);
-  return Response.json({
-    throws: rows.map(({ item, lineups, usedBy }) => ({
-      id: item.id,
-      name: item.name,
-      kind: item.kind,
-      landX: item.landX,
-      landY: item.landY,
-      landZ: item.landZ,
-      throwX: item.throwX,
-      throwY: item.throwY,
-      throwZ: item.throwZ,
-      level: item.level,
-      technique: item.technique,
-      note: item.note,
-      lineups: lineups.map((l) => ({ id: l.id, shotKind: l.shotKind, idx: l.idx })),
-      usedBy,
-    })),
-  });
+  return Response.json({ throws: rows.map(serialiseThrow) });
 }
 
 export async function POST(request: Request) {
@@ -88,7 +73,8 @@ export async function POST(request: Request) {
       level,
       createdBy: auth.player.steamid64,
     });
-    return Response.json({ ok: true, throw: { ...row, lineups: [] } });
+    const full = await getThrowFull(row.id);
+    return Response.json({ ok: true, throw: serialiseThrow(full!) });
   } catch (err) {
     // The unique index on (map, name) is what keeps the library from filling with
     // three different "heaven smoke" entries.

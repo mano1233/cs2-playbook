@@ -106,27 +106,29 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                         />
                         {utility
                           .filter((u) => u.item.level === lid)
-                          .map(({ item }) => {
+                          .map(({ use, item, lineups }) => {
                             const land = worldToPixel(strat.map, item.landX, item.landY)!;
                             const g = GLYPH[item.kind] ?? GLYPH.smoke!;
-                            const from =
-                              item.throwX !== null && item.throwY !== null
-                                ? worldToPixel(strat.map, item.throwX, item.throwY)
-                                : null;
+                            const spots = lineups.filter((l) => l.lineup.throwX !== null);
                             return (
-                              <g key={item.id}>
-                                {from ? (
-                                  <line
-                                    x1={from.fx * 1000}
-                                    y1={from.fy * 1000}
-                                    x2={land.fx * 1000}
-                                    y2={land.fy * 1000}
-                                    stroke={g.colour}
-                                    strokeWidth="2"
-                                    strokeDasharray="6 5"
-                                    opacity="0.7"
-                                  />
-                                ) : null}
+                              <g key={use.id}>
+                                {spots.map(({ lineup }, i) => {
+                                  const from = worldToPixel(strat.map, lineup.throwX!, lineup.throwY!)!;
+                                  return (
+                                    <g key={lineup.id}>
+                                      <line
+                                        x1={from.fx * 1000} y1={from.fy * 1000}
+                                        x2={land.fx * 1000} y2={land.fy * 1000}
+                                        stroke={g.colour} strokeWidth="2"
+                                        strokeDasharray="6 5" opacity="0.6"
+                                      />
+                                      <circle cx={from.fx * 1000} cy={from.fy * 1000} r="11"
+                                        fill={g.colour} fillOpacity="0.75" stroke="#00000088" strokeWidth="1.5" />
+                                      <text x={from.fx * 1000} y={from.fy * 1000 + 5} textAnchor="middle"
+                                        fontSize="14" fill="#0d1416" fontWeight="700">{i + 1}</text>
+                                    </g>
+                                  );
+                                })}
                                 <circle
                                   cx={land.fx * 1000}
                                   cy={land.fy * 1000}
@@ -188,8 +190,10 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                           </span>
                           <span className="job-who">{nameOf(use.throwerSteamid64)}</span>
                           <span className="job-what">
-                            {item.name} · {item.technique.replace("_", " ")}
-                            {lineups.length ? ` · ${lineups.length} shot` : ""}
+                            {item.name}
+                            {lineups.length
+                              ? ` · ${lineups.length} lineup${lineups.length === 1 ? "" : "s"}`
+                              : " · no lineup yet"}
                           </span>
                           {use.note ?? item.note ? (
                             <span className="muted job-note">{use.note ?? item.note}</span>

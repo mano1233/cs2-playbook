@@ -8,103 +8,41 @@
  * palette that stays armed so three smokes is three clicks, and phases that carry
  * player positions forward because players do not teleport between them.
  *
- * Two kinds of state live here and they are written differently on purpose:
+ * Two kinds of state, written differently on purpose:
  *
  *   - The strat — which throws are used, by whom, in which phase — autosaves on a
  *     debounce. It belongs to this strat alone.
- *   - A throw — geometry, technique, name, screenshots — is shared across every strat
- *     that references it, so it is written immediately through its own endpoint.
- *     Changing something shared should feel like a separate act, not a side effect of
- *     tweaking one exec.
+ *   - Throws and their lineups are shared across every strat that references them, so
+ *     they are written immediately through their own endpoints. Changing something
+ *     shared should be a deliberate act, not a side effect of tweaking one exec.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_LEVEL, fractionToWorld, radarFor, worldToPixel } from "@/lib/radar";
+import { ThrowInspector } from "./ThrowInspector";
+import {
+  ACTIONS,
+  type ActionKind,
+  type EditorLineup,
+  type EditorPhase,
+  type EditorPlayer,
+  type EditorState,
+  type EditorAssignment,
+  type EditorThrow,
+  type EditorUse,
+  type ShotKind,
+  UTIL_META,
+  type UtilKind,
+} from "./editor-types";
 
-export type UtilKind = "smoke" | "flash" | "he" | "molotov" | "decoy";
-export type Technique = "stand" | "jump" | "run_jump" | "walk" | "run";
-export type ActionKind = "hold" | "entry" | "trade" | "lurk" | "drop" | "throw" | "support";
-export type ShotKind = "stand" | "crosshair" | "result";
-
-export interface EditorPlayer {
-  steamid64: string;
-  nickname: string;
-}
-
-export interface EditorLineup {
-  id: string;
-  shotKind: ShotKind;
-  idx: number;
-}
-
-/** The shared thing: one throw on one map, reused by any number of strats. */
-export interface EditorThrow {
-  id: string;
-  name: string;
-  kind: UtilKind;
-  landX: number;
-  landY: number;
-  landZ: number | null;
-  throwX: number | null;
-  throwY: number | null;
-  throwZ: number | null;
-  level: string;
-  technique: Technique;
-  note: string | null;
-  lineups: EditorLineup[];
-  usedBy?: number;
-}
-
-/** The per-strat thing: this throw, in this phase, thrown by this player. */
-export interface EditorUse {
-  id: string;
-  throwId: string;
-  throwerSteamid64: string | null;
-  note: string | null;
-}
-
-export interface EditorAssignment {
-  id: string;
-  playerSteamid64: string | null;
-  x: number | null;
-  y: number | null;
-  z: number | null;
-  level: string;
-  action: ActionKind;
-  note: string | null;
-}
-
-export interface EditorPhase {
-  id: string;
-  name: string;
-  clockOffsetS: number;
-  note: string | null;
-  assignments: EditorAssignment[];
-  utility: EditorUse[];
-}
-
-export interface EditorState {
-  version: number;
-  name: string;
-  kind: string;
-  target: string | null;
-  status: string;
-  description: string | null;
-  phases: EditorPhase[];
-}
-
-const UTIL_META: Record<UtilKind, { label: string; glyph: string; colour: string; key: string }> = {
-  smoke: { label: "Smoke", glyph: "●", colour: "#cfd8dc", key: "1" },
-  flash: { label: "Flash", glyph: "◎", colour: "#ffd257", key: "2" },
-  he: { label: "HE", glyph: "✳", colour: "#e57373", key: "3" },
-  molotov: { label: "Molotov", glyph: "▲", colour: "#ff8a4c", key: "4" },
-  decoy: { label: "Decoy", glyph: "◌", colour: "#90a4ae", key: "5" },
-};
-
-const TECHNIQUES: Technique[] = ["stand", "jump", "run_jump", "walk", "run"];
-const ACTIONS: ActionKind[] = ["hold", "entry", "trade", "lurk", "drop", "throw", "support"];
-const SHOT_KINDS: ShotKind[] = ["stand", "crosshair", "result"];
+export type {
+  EditorLineup,
+  EditorPhase,
+  EditorPlayer,
+  EditorState,
+  EditorThrow,
+} from "./editor-types";
 
 type Tool = UtilKind | "player" | null;
 type Selection = { kind: "use" | "assignment"; id: string } | null;
@@ -139,7 +77,8 @@ export function StratEditor({
   const [level, setLevel] = useState<string>(cfg.levels[0]?.id ?? DEFAULT_LEVEL);
   const [tool, setTool] = useState<Tool>(null);
   const [selected, setSelected] = useState<Selection>(null);
-  const [placingThrow, setPlacingThrow] = useState(false);
+  /** Which lineup is waiting for a radar click to set its spot. */
+  const [placingFor, setPlacingFor] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "conflict" | "error">("idle");
   const [busy, setBusy] = useState<string | null>(null);
@@ -170,10 +109,7 @@ export function StratEditor({
           headers,
           body: JSON.stringify(next),
         });
-        if (res.status === 409) {
-          setSaving("conflict");
-          return;
-        }
+        if (res.status === 409) return setSaving("conflict");
         if (!res.ok) return setSaving("error");
         const json = (await res.json()) as { version: number };
         setState((s) => ({ ...s, version: json.version }));
@@ -203,43 +139,141 @@ export function StratEditor({
     [mutate, phaseIdx],
   );
 
-  // ---- throws: written immediately, because they are shared ---------------
+  // ---- shared writes: immediate ------------------------------------------
+
+  const refreshLibrary = useCallback(async () => {
+    const res = await fetch(`/api/throws?map=${map}`);
+    if (res.ok) setLibrary(((await res.json()) as { throws: EditorThrow[] }).throws);
+  }, [map]);
 
   const patchThrow = useCallback(
     async (id: string, patch: Partial<EditorThrow>) => {
       setLibrary((lib) => lib.map((t) => (t.id === id ? { ...t, ...patch } : t)));
       setBusy(id);
       try {
-        const res = await fetch(`/api/throws/${id}`, {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify(patch),
-        });
-        if (!res.ok) {
-          // Put the server's version back rather than leaving the screen showing an
-          // edit that did not land.
-          const fresh = await fetch(`/api/throws?map=${map}`).then((r) => r.json());
-          setLibrary(fresh.throws as EditorThrow[]);
-        }
+        const res = await fetch(`/api/throws/${id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
+        // Put the server's version back rather than leaving an edit on screen that
+        // never landed.
+        if (!res.ok) await refreshLibrary();
       } finally {
         setBusy(null);
       }
     },
-    [headers, map],
+    [headers, refreshLibrary],
   );
 
-  async function createThrowAt(kind: UtilKind, x: number, y: number) {
-    const res = await fetch("/api/throws", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ map, kind, landX: x, landY: y, level }),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { throw: EditorThrow };
-    const created = { ...json.throw, lineups: json.throw.lineups ?? [] };
-    setLibrary((lib) => [...lib, created]);
-    return created;
-  }
+  const patchLineup = useCallback(
+    async (throwId: string, lineupId: string, patch: Partial<EditorLineup>) => {
+      setLibrary((lib) =>
+        lib.map((t) =>
+          t.id === throwId
+            ? { ...t, lineups: t.lineups.map((l) => (l.id === lineupId ? { ...l, ...patch } : l)) }
+            : t,
+        ),
+      );
+      setBusy(throwId);
+      try {
+        const res = await fetch(`/api/lineups/${lineupId}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) await refreshLibrary();
+      } finally {
+        setBusy(null);
+      }
+    },
+    [headers, refreshLibrary],
+  );
+
+  const addLineup = useCallback(
+    async (throwId: string) => {
+      setBusy(throwId);
+      try {
+        const res = await fetch(`/api/throws/${throwId}/lineups`, { method: "POST", headers, body: "{}" });
+        if (!res.ok) return;
+        const { lineup } = (await res.json()) as { lineup: EditorLineup };
+        setLibrary((lib) =>
+          lib.map((t) =>
+            t.id === throwId ? { ...t, lineups: [...t.lineups, { ...lineup, shots: [] }] } : t,
+          ),
+        );
+        // Arm placement straight away: a lineup without a spot draws nothing, so the
+        // next thing anyone wants is to say where it is thrown from.
+        setPlacingFor(lineup.id);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [headers],
+  );
+
+  const removeLineup = useCallback(
+    async (throwId: string, lineupId: string) => {
+      setLibrary((lib) =>
+        lib.map((t) =>
+          t.id === throwId ? { ...t, lineups: t.lineups.filter((l) => l.id !== lineupId) } : t,
+        ),
+      );
+      if (placingFor === lineupId) setPlacingFor(null);
+      await fetch(`/api/lineups/${lineupId}`, { method: "DELETE", headers });
+    },
+    [headers, placingFor],
+  );
+
+  const uploadShot = useCallback(
+    async (throwId: string, lineupId: string, file: File, shotKind: ShotKind) => {
+      setBusy(throwId);
+      try {
+        const form = new FormData();
+        form.set("file", file);
+        form.set("shotKind", shotKind);
+        const res = await fetch(`/api/lineups/${lineupId}/shots`, {
+          method: "POST",
+          headers: { "x-csrf-token": csrf },
+          body: form,
+        });
+        if (!res.ok) return;
+        const { shot } = (await res.json()) as { shot: EditorLineup["shots"][number] };
+        setLibrary((lib) =>
+          lib.map((t) =>
+            t.id === throwId
+              ? {
+                  ...t,
+                  lineups: t.lineups.map((l) =>
+                    l.id === lineupId ? { ...l, shots: [...l.shots, shot] } : l,
+                  ),
+                }
+              : t,
+          ),
+        );
+      } finally {
+        setBusy(null);
+      }
+    },
+    [csrf],
+  );
+
+  const deleteShot = useCallback(
+    async (throwId: string, lineupId: string, shotId: string) => {
+      setLibrary((lib) =>
+        lib.map((t) =>
+          t.id === throwId
+            ? {
+                ...t,
+                lineups: t.lineups.map((l) =>
+                  l.id === lineupId ? { ...l, shots: l.shots.filter((s) => s.id !== shotId) } : l,
+                ),
+              }
+            : t,
+        ),
+      );
+      await fetch(`/api/shots/${shotId}`, { method: "DELETE", headers });
+    },
+    [headers],
+  );
+
+  // ---- placing -----------------------------------------------------------
 
   function useThrow(throwId: string) {
     const id = crypto.randomUUID();
@@ -248,10 +282,7 @@ export function StratEditor({
       utility: [...p.utility, { id, throwId, throwerSteamid64: null, note: null }],
     }));
     setSelected({ kind: "use", id });
-    return id;
   }
-
-  // ---- placing -----------------------------------------------------------
 
   async function onRadarClick(e: React.MouseEvent<SVGSVGElement>) {
     if (!phase) return;
@@ -263,10 +294,10 @@ export function StratEditor({
     );
     if (!world) return;
 
-    if (placingThrow && selected?.kind === "use") {
+    if (placingFor && selected?.kind === "use") {
       const use = phase.utility.find((u) => u.id === selected.id);
-      if (use) void patchThrow(use.throwId, { throwX: world.x, throwY: world.y, throwZ: null });
-      setPlacingThrow(false);
+      if (use) void patchLineup(use.throwId, placingFor, { throwX: world.x, throwY: world.y, throwZ: null });
+      setPlacingFor(null);
       return;
     }
 
@@ -287,8 +318,16 @@ export function StratEditor({
 
     // Placing utility creates a throw in the map's library and references it. The name
     // is auto-assigned so nothing stops to ask before the marker lands.
-    const created = await createThrowAt(tool, world.x, world.y);
-    if (created) useThrow(created.id);
+    const res = await fetch("/api/throws", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ map, kind: tool, landX: world.x, landY: world.y, level }),
+    });
+    if (!res.ok) return;
+    const { throw: created } = (await res.json()) as { throw: EditorThrow };
+    const withLineups = { ...created, lineups: created.lineups ?? [] };
+    setLibrary((lib) => [...lib, withLineups]);
+    useThrow(withLineups.id);
   }
 
   // ---- keyboard ----------------------------------------------------------
@@ -299,7 +338,7 @@ export function StratEditor({
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
 
       if (e.key === "Escape") {
-        setPlacingThrow(false);
+        setPlacingFor(null);
         setShowLibrary(false);
         return setTool(null);
       }
@@ -322,61 +361,7 @@ export function StratEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [selected, patchPhase]);
 
-  // ---- lineups -----------------------------------------------------------
-
-  const uploadLineup = useCallback(
-    async (throwId: string, file: File, shotKind: ShotKind) => {
-      setBusy(throwId);
-      try {
-        const form = new FormData();
-        form.set("file", file);
-        form.set("shotKind", shotKind);
-        const res = await fetch(`/api/throws/${throwId}/lineups`, {
-          method: "POST",
-          headers: { "x-csrf-token": csrf },
-          body: form,
-        });
-        if (!res.ok) return;
-        const json = (await res.json()) as { lineup: EditorLineup };
-        setLibrary((lib) =>
-          lib.map((t) => (t.id === throwId ? { ...t, lineups: [...t.lineups, json.lineup] } : t)),
-        );
-      } finally {
-        setBusy(null);
-      }
-    },
-    [csrf],
-  );
-
-  const deleteLineup = useCallback(
-    async (throwId: string, lineupId: string) => {
-      await fetch(`/api/lineups/${lineupId}`, { method: "DELETE", headers });
-      setLibrary((lib) =>
-        lib.map((t) =>
-          t.id === throwId ? { ...t, lineups: t.lineups.filter((l) => l.id !== lineupId) } : t,
-        ),
-      );
-    },
-    [headers],
-  );
-
-  // ---- selection helpers -------------------------------------------------
-
-  const selectedUse =
-    selected?.kind === "use" ? phase?.utility.find((u) => u.id === selected.id) : undefined;
-  const selectedThrow = selectedUse ? throwsById.get(selectedUse.throwId) : undefined;
-  const selectedAssignment =
-    selected?.kind === "assignment"
-      ? phase?.assignments.find((a) => a.id === selected.id)
-      : undefined;
-
-  const updateUse = (id: string, patch: Partial<EditorUse>) =>
-    patchPhase((p) => ({ ...p, utility: p.utility.map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
-  const updateAssignment = (id: string, patch: Partial<EditorAssignment>) =>
-    patchPhase((p) => ({
-      ...p,
-      assignments: p.assignments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-    }));
+  // ---- phases ------------------------------------------------------------
 
   function addPhase() {
     const last = state.phases[state.phases.length - 1];
@@ -405,9 +390,23 @@ export function StratEditor({
     setPhaseIdx((i) => Math.max(0, i - (idx <= i ? 1 : 0)));
   }
 
-  const usesOnLevel = (phase?.utility ?? []).filter(
-    (u) => throwsById.get(u.throwId)?.level === level,
-  );
+  // ---- derived -----------------------------------------------------------
+
+  const selectedUse =
+    selected?.kind === "use" ? phase?.utility.find((u) => u.id === selected.id) : undefined;
+  const selectedThrow = selectedUse ? throwsById.get(selectedUse.throwId) : undefined;
+  const selectedAssignment =
+    selected?.kind === "assignment" ? phase?.assignments.find((a) => a.id === selected.id) : undefined;
+
+  const updateUse = (id: string, patch: Partial<EditorUse>) =>
+    patchPhase((p) => ({ ...p, utility: p.utility.map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
+  const updateAssignment = (id: string, patch: Partial<EditorAssignment>) =>
+    patchPhase((p) => ({
+      ...p,
+      assignments: p.assignments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+    }));
+
+  const usesOnLevel = (phase?.utility ?? []).filter((u) => throwsById.get(u.throwId)?.level === level);
   const alreadyUsed = new Set((phase?.utility ?? []).map((u) => u.throwId));
 
   return (
@@ -472,7 +471,7 @@ export function StratEditor({
           </button>
 
           <p className="hint">
-            {placingThrow
+            {placingFor
               ? "Click where it is thrown from."
               : tool
                 ? "Armed — click the radar. It stays armed; Esc to stop."
@@ -495,7 +494,7 @@ export function StratEditor({
                   >
                     <span style={{ color: UTIL_META[t.kind].colour }}>{UTIL_META[t.kind].glyph}</span>
                     <span className="lib-name">{t.name}</span>
-                    {t.lineups.length ? <span className="lib-shots">{t.lineups.length}📷</span> : null}
+                    {t.lineups.length ? <span className="lib-shots">{t.lineups.length}×</span> : null}
                   </button>
                 </li>
               ))}
@@ -524,7 +523,7 @@ export function StratEditor({
           <svg
             ref={svgRef}
             viewBox="0 0 1000 1000"
-            className={`radar ${tool || placingThrow ? "armed" : ""}`}
+            className={`radar ${tool || placingFor ? "armed" : ""}`}
             onClick={(e) => void onRadarClick(e)}
           >
             <image href={`/api/radars/${map}/${level}`} x="0" y="0" width="1000" height="1000" />
@@ -532,42 +531,43 @@ export function StratEditor({
             {usesOnLevel.map((use) => {
               const t = throwsById.get(use.throwId)!;
               const land = worldToPixel(map, t.landX, t.landY)!;
-              const from =
-                t.throwX !== null && t.throwY !== null ? worldToPixel(map, t.throwX, t.throwY) : null;
               const meta = UTIL_META[t.kind];
               const isSel = selected?.kind === "use" && selected.id === use.id;
+              const positioned = t.lineups.filter((l) => l.throwX !== null);
+
               return (
                 <g key={use.id} onClick={(e) => { e.stopPropagation(); setSelected({ kind: "use", id: use.id }); }}>
-                  {from ? (
-                    <>
-                      <line
-                        x1={from.fx * 1000}
-                        y1={from.fy * 1000}
-                        x2={land.fx * 1000}
-                        y2={land.fy * 1000}
-                        stroke={meta.colour}
-                        strokeWidth="2"
-                        strokeDasharray="6 5"
-                        opacity="0.7"
-                      />
-                      <circle
-                        cx={from.fx * 1000}
-                        cy={from.fy * 1000}
-                        r="7"
-                        fill="none"
-                        stroke={meta.colour}
-                        strokeWidth="2.5"
-                      />
-                    </>
-                  ) : null}
+                  {/* Every lineup's spot, each dashed back to the same landing point. */}
+                  {positioned.map((l, i) => {
+                    const from = worldToPixel(map, l.throwX!, l.throwY!)!;
+                    return (
+                      <g key={l.id}>
+                        <line
+                          x1={from.fx * 1000} y1={from.fy * 1000}
+                          x2={land.fx * 1000} y2={land.fy * 1000}
+                          stroke={meta.colour} strokeWidth="2"
+                          strokeDasharray="6 5" opacity={isSel ? 0.9 : 0.45}
+                        />
+                        <circle
+                          cx={from.fx * 1000} cy={from.fy * 1000} r="11"
+                          fill={meta.colour} fillOpacity={isSel ? 0.9 : 0.55}
+                          stroke={placingFor === l.id ? "#fff" : "#00000088"}
+                          strokeWidth={placingFor === l.id ? 3 : 1.5}
+                        />
+                        <text
+                          x={from.fx * 1000} y={from.fy * 1000 + 5}
+                          textAnchor="middle" fontSize="14" fill="#0d1416" fontWeight="700"
+                        >
+                          {i + 1}
+                        </text>
+                      </g>
+                    );
+                  })}
+
                   <circle
-                    cx={land.fx * 1000}
-                    cy={land.fy * 1000}
-                    r="14"
-                    fill={meta.colour}
-                    fillOpacity="0.85"
-                    stroke={isSel ? "#fff" : "#00000088"}
-                    strokeWidth={isSel ? 3 : 1.5}
+                    cx={land.fx * 1000} cy={land.fy * 1000} r="14"
+                    fill={meta.colour} fillOpacity="0.85"
+                    stroke={isSel ? "#fff" : "#00000088"} strokeWidth={isSel ? 3 : 1.5}
                   />
                   <text x={land.fx * 1000} y={land.fy * 1000 + 5} textAnchor="middle" fontSize="15" fill="#0d1416">
                     {meta.glyph}
@@ -584,12 +584,8 @@ export function StratEditor({
                 return (
                   <g key={a.id} onClick={(e) => { e.stopPropagation(); setSelected({ kind: "assignment", id: a.id }); }}>
                     <circle
-                      cx={p.fx * 1000}
-                      cy={p.fy * 1000}
-                      r="13"
-                      fill="#17a398"
-                      stroke={isSel ? "#fff" : "#00000088"}
-                      strokeWidth={isSel ? 3 : 1.5}
+                      cx={p.fx * 1000} cy={p.fy * 1000} r="13" fill="#17a398"
+                      stroke={isSel ? "#fff" : "#00000088"} strokeWidth={isSel ? 3 : 1.5}
                     />
                     <text x={p.fx * 1000} y={p.fy * 1000 + 26} textAnchor="middle" fontSize="20" fill="#e6ecea">
                       {nameOf(a.playerSteamid64)}
@@ -607,12 +603,15 @@ export function StratEditor({
               item={selectedThrow}
               roster={roster}
               busy={busy === selectedThrow.id}
-              placingThrow={placingThrow}
+              placingFor={placingFor}
               onUse={(patch) => updateUse(selectedUse.id, patch)}
               onThrow={(patch) => void patchThrow(selectedThrow.id, patch)}
-              onPlaceOrigin={() => setPlacingThrow((v) => !v)}
-              onUpload={(f, k) => void uploadLineup(selectedThrow.id, f, k)}
-              onDeleteLineup={(lid) => void deleteLineup(selectedThrow.id, lid)}
+              onLineup={(lid, patch) => void patchLineup(selectedThrow.id, lid, patch)}
+              onAddLineup={() => void addLineup(selectedThrow.id)}
+              onDeleteLineup={(lid) => void removeLineup(selectedThrow.id, lid)}
+              onPlaceOrigin={(lid) => setPlacingFor(lid)}
+              onUpload={(lid, f, k) => void uploadShot(selectedThrow.id, lid, f, k)}
+              onDeleteShot={(lid, sid) => void deleteShot(selectedThrow.id, lid, sid)}
               onRemove={() => {
                 patchPhase((p) => ({ ...p, utility: p.utility.filter((u) => u.id !== selectedUse.id) }));
                 setSelected(null);
@@ -670,10 +669,7 @@ export function StratEditor({
                   <label>
                     <span>At (seconds after freeze end)</span>
                     <input
-                      type="number"
-                      min={0}
-                      max={115}
-                      value={phase.clockOffsetS}
+                      type="number" min={0} max={115} value={phase.clockOffsetS}
                       onChange={(e) => patchPhase((p) => ({ ...p, clockOffsetS: Number(e.target.value) || 0 }))}
                     />
                   </label>
@@ -709,150 +705,5 @@ export function StratEditor({
         <a className="btn" href={`/${map}/${side}`}>Done</a>
       </div>
     </div>
-  );
-}
-
-/**
- * Split out because it holds the one thing in this editor that is easy to get wrong:
- * the fields above the divider belong to the shared throw and change every strat that
- * uses it, and the fields below belong to this strat alone.
- */
-function ThrowInspector({
-  use,
-  item,
-  roster,
-  busy,
-  placingThrow,
-  onUse,
-  onThrow,
-  onPlaceOrigin,
-  onUpload,
-  onDeleteLineup,
-  onRemove,
-}: {
-  use: EditorUse;
-  item: EditorThrow;
-  roster: EditorPlayer[];
-  busy: boolean;
-  placingThrow: boolean;
-  onUse: (patch: Partial<EditorUse>) => void;
-  onThrow: (patch: Partial<EditorThrow>) => void;
-  onPlaceOrigin: () => void;
-  onUpload: (file: File, shotKind: ShotKind) => void;
-  onDeleteLineup: (lineupId: string) => void;
-  onRemove: () => void;
-}) {
-  const [shotKind, setShotKind] = useState<ShotKind>("stand");
-  const [name, setName] = useState(item.name);
-  useEffect(() => setName(item.name), [item.id, item.name]);
-
-  const take = (files: FileList | File[] | null) => {
-    if (!files) return;
-    for (const f of Array.from(files)) if (f.type.startsWith("image/")) onUpload(f, shotKind);
-  };
-
-  return (
-    <>
-      <h3>
-        {UTIL_META[item.kind].label} {busy ? <span className="hint">saving…</span> : null}
-      </h3>
-
-      <p className="shared-note">
-        Shared — used by {item.usedBy ?? 1} strat{(item.usedBy ?? 1) === 1 ? "" : "s"}. Edits
-        below apply everywhere.
-      </p>
-
-      <label>
-        <span>Name</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name.trim() && name !== item.name && onThrow({ name: name.trim() })}
-        />
-      </label>
-      <label>
-        <span>Technique</span>
-        <select value={item.technique} onChange={(e) => onThrow({ technique: e.target.value as Technique })}>
-          {TECHNIQUES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
-        </select>
-      </label>
-
-      <div className="throw-from">
-        <span className="field-label">Throw from</span>
-        <p className="hint">
-          {item.throwX !== null ? "set — dashed line runs origin to landing." : "not set yet."}
-        </p>
-        <div className="throw-buttons">
-          <button className={`btn ${placingThrow ? "btn-primary" : ""}`} onClick={onPlaceOrigin}>
-            {placingThrow ? "click the radar…" : "Set origin"}
-          </button>
-          {item.throwX !== null ? (
-            <button className="btn" onClick={() => onThrow({ throwX: null, throwY: null, throwZ: null })}>
-              Clear
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="lineups">
-        <span className="field-label">Lineup shots</span>
-        <div className="shot-kinds">
-          {SHOT_KINDS.map((k) => (
-            <button key={k} className={`btn ${shotKind === k ? "btn-primary" : ""}`} onClick={() => setShotKind(k)}>
-              {k}
-            </button>
-          ))}
-        </div>
-        <div
-          className="dropzone"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); take(e.dataTransfer.files); }}
-          onPaste={(e) => take(Array.from(e.clipboardData.files))}
-          tabIndex={0}
-        >
-          Drop, paste or{" "}
-          <label className="pick">
-            choose
-            <input type="file" accept="image/png,image/jpeg,image/webp" multiple
-              onChange={(e) => { take(e.target.files); e.target.value = ""; }} />
-          </label>
-          <br />
-          <span className="hint">CS2 screenshots paste straight in.</span>
-        </div>
-        {item.lineups.length ? (
-          <div className="shots">
-            {item.lineups.map((l) => (
-              <figure key={l.id}>
-                <img src={`/api/lineups/${l.id}`} alt={l.shotKind} />
-                <figcaption>
-                  {l.shotKind}
-                  <button className="shot-x" onClick={() => onDeleteLineup(l.id)} aria-label="delete shot">×</button>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <hr className="divider" />
-      <p className="shared-note this-strat">This strat only.</p>
-
-      <label>
-        <span>Thrower</span>
-        <select
-          value={use.throwerSteamid64 ?? ""}
-          onChange={(e) => onUse({ throwerSteamid64: e.target.value || null })}
-        >
-          <option value="">unassigned</option>
-          {roster.map((p) => <option key={p.steamid64} value={p.steamid64}>{p.nickname}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>Note</span>
-        <textarea rows={2} value={use.note ?? ""} onChange={(e) => onUse({ note: e.target.value || null })} />
-      </label>
-
-      <button className="btn" onClick={onRemove}>Remove from this phase</button>
-    </>
   );
 }
