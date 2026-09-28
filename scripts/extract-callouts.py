@@ -133,7 +133,8 @@ def main(dirs: list[Path]) -> None:
     # callouts because its demo was cleaned up would be a regression nobody asked for.
     previous = json.loads(OUT.read_text()) if OUT.exists() else {}
     merged = {**previous, **out}
-    OUT.write_text(json.dumps(merged, separators=(",", ":"), sort_keys=True) + "\n")
+    # LF on every OS, so a rerun on Windows does not show as a whole-file diff.
+    OUT.write_text(json.dumps(merged, separators=(",", ":"), sort_keys=True) + "\n", newline="\n")
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB, {len(merged)} maps)")
 
 
