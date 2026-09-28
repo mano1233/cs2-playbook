@@ -1,0 +1,1 @@
+ALTER TYPE "public"."movement" ADD VALUE 'crouching' BEFORE 'walking';

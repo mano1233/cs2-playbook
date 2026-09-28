@@ -8,8 +8,6 @@
 import { radarFor } from "@/lib/radar";
 import { requireWriter } from "@/lib/auth";
 import {
-  TECHNIQUES,
-  type Technique,
   UTIL_KINDS,
   type UtilKind,
   deleteThrow,
@@ -46,9 +44,6 @@ export async function PATCH(
     patch.name = body.name.trim().slice(0, 80);
   }
   if ((UTIL_KINDS as string[]).includes(body.kind as string)) patch.kind = body.kind as UtilKind;
-  if ((TECHNIQUES as string[]).includes(body.technique as string)) {
-    patch.technique = body.technique as Technique;
-  }
   if (cfg.levels.some((l) => l.id === body.level)) patch.level = body.level;
   if ("note" in body) {
     patch.note = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;

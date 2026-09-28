@@ -25,6 +25,9 @@ function s3() {
       endpoint,
       // R2 has no regions, but the SDK insists on one.
       region: "auto",
+      // A local S3 stand-in (S3Mock, MinIO) only answers path-style URLs; R2 takes
+      // either, so production leaves this unset and keeps the SDK's default.
+      forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "1",
       credentials: { accessKeyId, secretAccessKey },
     });
   }

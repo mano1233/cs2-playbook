@@ -5,12 +5,11 @@
  * uses the throw, which is the whole point of the library.
  */
 import { requireWriter } from "@/lib/auth";
-import { TECHNIQUES, type Technique, deleteLineup, getLineup, updateLineup } from "@/lib/throws";
+import { deleteLineup, getLineup, getThrow, lineupPatchFrom, updateLineup } from "@/lib/throws";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 export async function PATCH(
   request: Request,
@@ -27,36 +26,16 @@ export async function PATCH(
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ error: "bad json" }, { status: 400 });
 
-  const patch: Record<string, unknown> = {};
-  if (typeof body.name === "string") patch.name = body.name.trim().slice(0, 80) || null;
-  if ((TECHNIQUES as string[]).includes(body.technique as string)) {
-    patch.technique = body.technique as Technique;
-  }
-  if ("note" in body) {
-    patch.note =
-      typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
-  }
-  // Write once, for the same reason the landing point is. A lineup *is* the spot you
-  // stand on; move it and the screenshots showing that spot are of somewhere else, with
-  // nothing to indicate it. Another spot for the same landing point is another lineup —
-  // which the model already supports, and is the honest way to record it.
-  if ("throwX" in body && num(body.throwX) !== null) {
-    if (current.throwX !== null || current.throwY !== null) {
-      return Response.json(
-        {
-          error: "where a lineup is thrown from is fixed once set — add another lineup instead",
-          throwX: current.throwX,
-          throwY: current.throwY,
-        },
-        { status: 409 },
-      );
-    }
-    patch.throwX = num(body.throwX);
-    patch.throwY = num(body.throwY);
-    patch.throwZ = num(body.throwZ);
+  // Validation, and the write-once rule for where it is thrown from, live in
+  // lineupPatchFrom so every route that writes a lineup enforces them the same way.
+  const owner = (await getThrow(current.throwId))!;
+  const result = lineupPatchFrom(body, current, { map: owner.map, level: owner.level });
+  if (!result.ok) {
+    const { status, ...rest } = result;
+    return Response.json(rest, { status });
   }
 
-  const row = await updateLineup(id, patch);
+  const row = await updateLineup(id, result.patch);
   return Response.json({ ok: true, lineup: row });
 }
 

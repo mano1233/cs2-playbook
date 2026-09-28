@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_LEVEL, fractionToWorld, radarFor, worldToPixel } from "@/lib/radar";
 import { convertScreenshot, formatBytes } from "@/lib/convert-image";
+import { MOVEMENTS, MOVEMENT_LABEL, type Movement, parseGetpos } from "@/lib/lineup-meta";
 import { ThrowInspector } from "./ThrowInspector";
 import {
   ACTIONS,
@@ -33,7 +34,6 @@ import {
   type EditorThrow,
   type EditorUse,
   type ShotKind,
-  type Technique,
   UTIL_META,
   type UtilKind,
 } from "./editor-types";
@@ -62,7 +62,13 @@ type PendingUtil = {
   /** Undefined until the second radar click. */
   throwX?: number;
   throwY?: number;
-  technique: Technique;
+  /**
+   * Pasted getpos output, when the spot came from the game rather than a click. Sent
+   * as-is: the server parses it too, and it carries the view angles a click cannot.
+   */
+  getpos?: string;
+  movement: Movement;
+  jump: boolean;
   shots: Partial<Record<ShotKind, File>>;
 };
 
@@ -73,7 +79,6 @@ const SHOT_LABEL: Record<ShotKind, string> = {
 };
 /** Held back until the end so pasting fills location, then crosshair, then result. */
 const SHOT_ORDER: ShotKind[] = ["stand", "crosshair", "result"];
-const TECHNIQUES: Technique[] = ["stand", "jump", "run_jump", "walk", "run"];
 type Selection = { kind: "use" | "assignment"; id: string } | null;
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -219,7 +224,9 @@ export function StratEditor({
           headers,
           body: JSON.stringify(patch),
         });
-        if (!res.ok) await refreshLibrary();
+        // A getpos is parsed on the server, so the position it sets only exists once
+        // the library is read back.
+        if (!res.ok || "getpos" in patch) await refreshLibrary();
       } finally {
         setBusy(null);
       }
@@ -383,7 +390,8 @@ export function StratEditor({
       name: "",
       landX: world.x,
       landY: world.y,
-      technique: "stand",
+      movement: "stationary",
+      jump: false,
       shots: {},
     });
   }
@@ -400,9 +408,11 @@ export function StratEditor({
         landY: p.landY,
         level,
         lineup:
-          p.throwX !== undefined
-            ? { throwX: p.throwX, throwY: p.throwY, technique: p.technique }
-            : undefined,
+          p.getpos
+            ? { getpos: p.getpos, movement: p.movement, jump: p.jump }
+            : p.throwX !== undefined
+              ? { throwX: p.throwX, throwY: p.throwY, movement: p.movement, jump: p.jump }
+              : undefined,
       }),
     });
     if (!res.ok) return;
@@ -777,7 +787,9 @@ export function StratEditor({
                 <ol className="pending-steps">
                   <li className="done">where it lands</li>
                   <li className={placed ? "done" : "now"}>
-                    {placed ? "where it is thrown from" : "click where it is thrown from"}
+                    {placed
+                      ? pending.getpos ? "where it is thrown from · exact, from getpos" : "where it is thrown from"
+                      : "click where it is thrown from, or paste getpos"}
                   </li>
                 </ol>
 
@@ -793,16 +805,44 @@ export function StratEditor({
                 </label>
 
                 <label>
-                  <span>Technique</span>
+                  <span>Or paste getpos</span>
+                  <input
+                    className="getpos-input"
+                    value={pending.getpos ?? ""}
+                    placeholder="setpos … ;setang …"
+                    onChange={(e) => {
+                      const gp = parseGetpos(e.target.value);
+                      // Exact beats a click: a getpos replaces whatever was clicked.
+                      setPending(
+                        gp
+                          ? { ...pending, getpos: e.target.value, throwX: gp.x, throwY: gp.y }
+                          : { ...pending, getpos: e.target.value || undefined },
+                      );
+                    }}
+                  />
+                </label>
+                {pending.getpos && !parseGetpos(pending.getpos) ? (
+                  <p className="hint bad">Not getpos output — run <code>getpos</code> in the console and copy the whole line.</p>
+                ) : null}
+
+                <div className="lineup-row">
                   <select
-                    value={pending.technique}
-                    onChange={(e) => setPending({ ...pending, technique: e.target.value as Technique })}
+                    value={pending.movement}
+                    onChange={(e) => setPending({ ...pending, movement: e.target.value as Movement })}
                   >
-                    {TECHNIQUES.map((t) => (
-                      <option key={t} value={t}>{t.replace("_", " ")}</option>
+                    {MOVEMENTS.map((m) => (
+                      <option key={m} value={m}>{MOVEMENT_LABEL[m]}</option>
                     ))}
                   </select>
-                </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={pending.jump}
+                      onChange={(e) => setPending({ ...pending, jump: e.target.checked })}
+                    />
+                    jump
+                  </label>
+                </div>
 
                 <span className="field-label">Screenshots</span>
                 <p className="hint">
@@ -862,7 +902,7 @@ export function StratEditor({
                   <button className="btn" onClick={() => setPending(null)}>Cancel</button>
                 </div>
                 {!placed ? (
-                  <p className="hint">Click the radar once more to say where it is thrown from.</p>
+                  <p className="hint">Click the radar once more to say where it is thrown from, or paste <code>getpos</code> from the game.</p>
                 ) : missing.length ? (
                   <p className="hint">
                     No {missing.map((k) => SHOT_LABEL[k]).join(" or ")} shot yet. Screenshots
