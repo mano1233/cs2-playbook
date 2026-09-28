@@ -23,12 +23,11 @@ import type {
   EditorPlayer,
   EditorThrow,
   EditorUse,
+  Movement,
   ShotKind,
-  Technique,
   UtilKind,
 } from "./editor-types";
-
-const TECHNIQUES: Technique[] = ["stand", "jump", "run_jump", "walk", "run"];
+import { MOVEMENTS, MOVEMENT_LABEL, parseGetpos } from "@/lib/lineup-meta";
 const SHOT_KINDS: ShotKind[] = ["stand", "crosshair", "result"];
 /** "stand" is what the column says; "location" is what the team calls it. */
 const SHOT_LABEL: Record<ShotKind, string> = {
@@ -175,6 +174,9 @@ function LineupCard({
   onDelete: () => void;
 }) {
   const [shotKind, setShotKind] = useState<ShotKind>("stand");
+  const [getpos, setGetpos] = useState("");
+  const gp = getpos.trim() ? parseGetpos(getpos) : null;
+  const exact = lineup.pitch !== null && lineup.yaw !== null;
   const [name, setName] = useState(lineup.name ?? "");
   useEffect(() => setName(lineup.name ?? ""), [lineup.id, lineup.name]);
 
@@ -199,19 +201,41 @@ function LineupCard({
 
       <div className="lineup-row">
         <select
-          value={lineup.technique}
-          onChange={(e) => onPatch({ technique: e.target.value as Technique })}
+          value={lineup.movement}
+          onChange={(e) => onPatch({ movement: e.target.value as Movement })}
         >
-          {TECHNIQUES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
+          {MOVEMENTS.map((m) => <option key={m} value={m}>{MOVEMENT_LABEL[m]}</option>)}
         </select>
+        <label className="check">
+          <input type="checkbox" checked={lineup.jump} onChange={(e) => onPatch({ jump: e.target.checked })} />
+          jump
+        </label>
         {lineup.throwX === null ? (
           <button className={`btn tiny ${placing ? "btn-primary" : ""}`} onClick={onPlaceOrigin}>
             {placing ? "click radar…" : "set spot"}
           </button>
         ) : (
-          <span className="fixed-note">spot fixed</span>
+          <span className="fixed-note">{exact ? "spot exact" : "spot fixed"}</span>
         )}
       </div>
+
+      {!exact ? (
+        <div className="lineup-row">
+          <input
+            className="getpos-input"
+            value={getpos}
+            placeholder={lineup.throwX === null ? "or paste getpos" : "paste getpos to make it exact"}
+            onChange={(e) => setGetpos(e.target.value)}
+          />
+          <button
+            className="btn tiny"
+            disabled={!gp}
+            onClick={() => { onPatch({ getpos } as Partial<EditorLineup>); setGetpos(""); }}
+          >
+            set
+          </button>
+        </div>
+      ) : null}
 
       {lineup.throwX === null ? (
         <p className="hint">

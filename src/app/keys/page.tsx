@@ -32,7 +32,10 @@ export default async function KeysPage() {
 # a complete util: kind, where it lands, where it is thrown from
 curl -X POST https://playbook.meerkat-cirius.ts.net/api/throws   -H "Authorization: Bearer pbk_..."   -H "content-type: application/json"   -d '{"map":"de_nuke","kind":"smoke","name":"heaven",
        "landX":500,"landY":-900,
-       "lineup":{"throwX":-1300,"throwY":-400,"technique":"jump"}}'
+       "lineup":{"getpos":"setpos -1300 -400 -350;setang -7.1 -47.2 0",
+                 "fromCallout":"T Roof","side":"t","click":"left","jump":true,
+                 "movement":"stationary","precision":"precise",
+                 "steps":"Stand in the corner of the pipe\nAim at the antenna"}}'
 
 # then its screenshots, against the lineup id the call above returned
 for k in stand crosshair result; do
@@ -46,6 +49,11 @@ curl -X POST https://playbook.meerkat-cirius.ts.net/api/throws/import   -H "Auth
             server refuses to move either with a 409. <code>shotKind</code> is{" "}
             <code>stand</code> (where you stand), <code>crosshair</code> (what you aim
             at) or <code>result</code>, which is optional.
+          </p>
+          <p className="hint">
+            <code>getpos</code> is the line CS2 prints for the <code>getpos</code> console
+            command — exact position and view angles. <code>throwX</code>/<code>throwY</code>{" "}
+            still work for a spot without angles.
           </p>
           <p className="hint">
             No CSRF header is needed with a bearer token. That check exists because a

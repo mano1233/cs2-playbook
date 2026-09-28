@@ -7,8 +7,10 @@
  * point, which is the bug this structure exists to fix.
  */
 
+import type { Click, LineupSide, Movement, Precision } from "@/lib/lineup-meta";
+export type { Click, LineupSide, Movement, Precision };
+
 export type UtilKind = "smoke" | "flash" | "he" | "molotov" | "decoy";
-export type Technique = "stand" | "jump" | "run_jump" | "walk" | "run";
 export type ActionKind = "hold" | "entry" | "trade" | "lurk" | "drop" | "throw" | "support";
 export type ShotKind = "stand" | "crosshair" | "result";
 
@@ -30,7 +32,16 @@ export interface EditorLineup {
   throwX: number | null;
   throwY: number | null;
   throwZ: number | null;
-  technique: Technique;
+  /** From getpos. Null when the spot was clicked on the radar. */
+  pitch: number | null;
+  yaw: number | null;
+  side: LineupSide | null;
+  movement: Movement;
+  jump: boolean;
+  click: Click;
+  precision: Precision | null;
+  fromCallout: string | null;
+  steps: string | null;
   note: string | null;
   shots: EditorShot[];
 }

@@ -59,6 +59,23 @@ npm run dev
 Steam sign-in works against `http://localhost:3000`: the browser performs the redirect
 and verification is a server-to-Steam POST, so no public hostname is needed to develop.
 
+For screenshots and radars locally, point the `R2_*` variables at any S3 stand-in (e.g.
+`adobe/s3mock`) with `S3_FORCE_PATH_STYLE=1`, and copy the radars in under
+`radars/<map>__<level>.png`. Variables already set in the shell win over `.env.local`,
+so a machine that exports `R2_*`/`AWS_*` for another project (cs2-analyzer does) sends
+dev traffic there unless they are unset for the dev server.
+
+## Callouts
+
+`src/data/callouts.json` holds Valve's place names — the text under the in-game radar —
+with where they are, extracted from demos: every demo records the place the game says
+each player is standing in. It labels the radar and names a spot from a pasted getpos.
+A map is covered once any demo of it has been played; rerun after adding demos:
+
+```bash
+../cs2-demos/.venv/Scripts/python scripts/extract-callouts.py
+```
+
 ## Tests
 
 ```bash
@@ -99,6 +116,7 @@ from the session token rather than stored — nothing to keep in sync.
 | `STEAM_API_KEY` | Optional. Avatars and display names only |
 | `R2_BUCKET`, `R2_ENDPOINT` | Lineup screenshots and radar images |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | R2 credentials, minted by Terraform |
+| `S3_FORCE_PATH_STYLE` | `1` for a local S3 stand-in, which only answers path-style URLs. Unset for R2 |
 | `ROSTER` | `steamid64:nickname,...`. Seeded on every start when set, so the allowlist stays declarative in Terraform. Idempotent, and it leaves `active` alone |
 
 ## Versioning

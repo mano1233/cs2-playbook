@@ -361,3 +361,149 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .shot-slot .slot-name { flex: 1; }
 .shot-slot .slot-name em { font-style: normal; opacity: .55; font-size: .72rem; }
 .shot-slot .slot-file { font-variant-numeric: tabular-nums; }
+
+/* --- lineup details (editor + explorer) -------------------------------- */
+.check { display: inline-flex; flex: 0 0 auto; white-space: nowrap; align-items: center; gap: .35rem; font-size: .8rem; color: var(--muted); cursor: pointer; }
+.check input { accent-color: var(--accent); }
+.getpos-input { flex: 1; min-width: 0; font-family: var(--mono); font-size: .74rem; }
+.hint.bad { color: var(--bad); }
+.hint code, .ux-hint code { font-family: var(--mono); font-size: .9em; }
+
+/* --- utility explorer -------------------------------------------------- */
+/* Wider than .wrap: the radar is the page, and it wants every pixel it can get. */
+.ux-wrap { max-width: 1500px; margin: 0 auto; padding: 1rem 1rem 3rem; }
+.ux-top { display: flex; align-items: center; gap: .8rem; margin-bottom: .8rem; }
+.ux-top .side-switch { margin: 0; }
+
+.ux { display: grid; grid-template-columns: 210px minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
+.ux-rail, .ux-panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: .9rem; position: sticky; top: 1rem;
+}
+.ux-panel { max-height: calc(100vh - 2rem); overflow: auto; }
+.ux-rail { display: flex; flex-direction: column; gap: 1rem; }
+.ux-search { width: 100%; }
+.ux-group { display: flex; flex-direction: column; gap: .4rem; }
+.ux-chips { display: flex; flex-direction: column; gap: .3rem; }
+.ux-chip {
+  display: flex; align-items: center; gap: .5rem; width: 100%;
+  background: transparent; border: 1px solid var(--line); border-radius: var(--radius);
+  color: var(--ink); font: inherit; font-size: .88rem; padding: .35rem .55rem; cursor: pointer; text-align: left;
+}
+.ux-chip:hover { border-color: var(--tool-colour, var(--accent)); }
+.ux-chip.on { border-color: var(--tool-colour, var(--accent)); background: color-mix(in srgb, var(--tool-colour, var(--accent)) 14%, transparent); }
+.ux-n { margin-left: auto; font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+.ux-seg { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.ux-seg button {
+  flex: 1; background: transparent; border: 0; color: var(--muted); font: inherit; font-size: .85rem;
+  padding: .35rem .3rem; cursor: pointer; display: inline-flex; gap: .3rem; justify-content: center; align-items: baseline;
+}
+.ux-seg button + button { border-left: 1px solid var(--line); }
+.ux-seg button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--ink); }
+.ux-seg .ux-n { margin-left: 0; }
+.ux-toggle { display: flex; gap: .45rem; align-items: center; font-size: .85rem; color: var(--muted); cursor: pointer; }
+.ux-toggle input { accent-color: var(--accent); }
+
+.ux-map { position: relative; }
+.ux-radar {
+  background: #000; border: 1px solid var(--line); border-radius: var(--radius);
+  max-height: calc(100vh - 7rem); width: 100%; aspect-ratio: 1; margin: 0 auto;
+}
+.ux-empty { position: absolute; inset: auto 0 1rem; text-align: center; }
+.ux-land, .ux-origin { cursor: pointer; }
+.ux-land { transition: opacity .15s; }
+.ux-land.dim { opacity: .25; }
+.ux-land:hover circle:first-of-type { stroke-width: 4; }
+.ux-callout {
+  font-family: var(--sans); font-size: 17px; font-weight: 600; letter-spacing: .02em;
+  fill: #e6ecea; fill-opacity: .72; paint-order: stroke; stroke: #000; stroke-opacity: .8; stroke-width: 4px;
+  pointer-events: none; user-select: none;
+}
+.ux-land-name { fill: var(--ink); paint-order: stroke; stroke: #000; stroke-width: 5px; }
+
+.ux-hint { font-size: .88rem; margin-top: 0; }
+.ux-sub {
+  font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  margin: 1.1rem 0 .4rem;
+}
+.ux-list { list-style: none; margin: 0; padding: 0; }
+.ux-row, .ux-lineup {
+  display: flex; align-items: center; gap: .55rem; width: 100%;
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius);
+  color: var(--ink); font: inherit; font-size: .9rem; padding: .4rem .45rem; cursor: pointer; text-align: left;
+}
+.ux-row:hover, .ux-lineup:hover { border-color: var(--line); background: rgba(255,255,255,.03); }
+.ux-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ux-lineup { align-items: center; }
+.ux-lineup-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ux-thumb { width: 64px; height: 36px; object-fit: cover; border-radius: 3px; border: 1px solid var(--line); flex: 0 0 auto; }
+
+.ux-back {
+  background: none; border: 0; padding: 0; margin-bottom: .6rem; cursor: pointer;
+  color: var(--muted); font: inherit; font-size: .82rem;
+}
+.ux-back:hover { color: var(--accent); }
+.ux-title { font-size: 1.3rem; margin: 0; }
+.ux-from { margin: .1rem 0 .6rem; color: var(--muted); }
+.ux-from strong { color: var(--ink); font-weight: 600; }
+.ux-meta { font-family: var(--mono); font-size: .74rem; color: var(--muted); margin: .15rem 0 0; }
+.ux-note { font-size: .88rem; color: var(--muted); border-left: 2px solid var(--line); padding-left: .6rem; }
+
+.ux-tags { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .8rem; }
+.ux-tag {
+  font-size: .75rem; padding: .15rem .5rem; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink); background: var(--ground);
+}
+.ux-tag.side-t { border-color: var(--warn); color: var(--warn); }
+.ux-tag.side-ct { border-color: #6ba4d9; color: #6ba4d9; }
+
+.ux-shots { margin-bottom: .8rem; }
+.ux-shot-tabs { display: flex; gap: .25rem; margin-bottom: .35rem; }
+.ux-shot-tabs button {
+  flex: 1; background: transparent; border: 1px solid var(--line); border-radius: var(--radius);
+  color: var(--muted); font: inherit; font-size: .78rem; padding: .25rem; cursor: pointer;
+}
+.ux-shot-tabs button.on { border-color: var(--accent); color: var(--ink); }
+.ux-shot { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.ux-shot img { display: block; width: 100%; border-radius: var(--radius); border: 1px solid var(--line); }
+
+.ux-steps { margin: 0 0 .8rem; padding-left: 1.3rem; font-size: .92rem; }
+.ux-steps li + li { margin-top: .3rem; }
+
+.ux-setpos { display: flex; flex-direction: column; gap: .35rem; margin: .8rem 0; }
+.ux-setpos code {
+  font-family: var(--mono); font-size: .7rem; color: var(--muted); word-break: break-all;
+  background: var(--ground); border: 1px solid var(--line); border-radius: var(--radius); padding: .4rem .5rem;
+  user-select: all;
+}
+.ux-add { width: 100%; margin-top: .8rem; }
+
+.ux-form { margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+.ux-form label:not(.check):not(.pick) { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .6rem; }
+.ux-form label > span { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.ux-form textarea { resize: vertical; font-size: .88rem; }
+.ux-form .check { margin-bottom: .7rem; }
+.ux-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+
+.ux-lightbox {
+  max-width: 96vw; max-height: 96vh; padding: 0; border: 0; background: transparent; cursor: zoom-out;
+}
+.ux-lightbox::backdrop { background: rgba(0, 0, 0, .88); }
+.ux-lightbox img { display: block; max-width: 96vw; max-height: 90vh; margin: 0 auto; border-radius: var(--radius); }
+.ux-lightbox p { text-align: center; color: var(--muted); font-size: .85rem; margin: .4rem 0 0; }
+
+/* Phones and narrow windows: filters become a strip, the panel follows the radar. */
+@media (max-width: 1000px) {
+  .ux { grid-template-columns: minmax(0, 1fr); }
+  .ux-rail, .ux-panel { position: static; max-height: none; }
+  .ux-rail { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: .6rem; }
+  .ux-search { flex: 1 1 100%; }
+  .ux-rail { padding: .6rem; }
+  /* One swipeable row, so the radar starts near the top of a phone screen. */
+  .ux-chips { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; }
+  .ux-chip { width: auto; flex: 0 0 auto; }
+  .ux-group { flex: 1 1 100%; }
+  .ux-group:has(.ux-seg) { flex: 0 0 auto; }
+  .ux-radar { max-height: none; }
+  .ux-top { flex-wrap: wrap; }
+}

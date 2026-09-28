@@ -39,13 +39,17 @@ export const utilityKind = pgEnum("utility_kind", [
   "molotov",
   "decoy",
 ]);
-export const technique = pgEnum("technique", [
-  "stand",
-  "jump",
-  "run_jump",
-  "walk",
-  "run",
+/** How you move while releasing. Jumping is its own column — see lib/lineup-meta.ts. */
+export const movement = pgEnum("movement", [
+  "stationary",
+  "crouching",
+  "walking",
+  "running",
+  "crouch_walking",
 ]);
+export const click = pgEnum("click", ["left", "right", "both"]);
+/** How forgiving the lineup is. Null means nobody has said. */
+export const precision = pgEnum("precision", ["loose", "precise", "very_precise"]);
 export const action = pgEnum("action", [
   "hold",
   "entry",
@@ -248,7 +252,23 @@ export const lineups = pgTable(
     throwX: real("throw_x"),
     throwY: real("throw_y"),
     throwZ: real("throw_z"),
-    technique: technique("technique").notNull().default("stand"),
+    /**
+     * The view angles from getpos. With the position they make the lineup exact and
+     * give teammates a setpos to practise from; without them the lineup is only as good
+     * as its screenshots. Null for spots clicked on the radar.
+     */
+    pitch: real("pitch"),
+    yaw: real("yaw"),
+    /** Who throws it. Null: either side does, e.g. a mid smoke both teams use. */
+    side: side("side"),
+    movement: movement("movement").notNull().default("stationary"),
+    jump: boolean("jump").notNull().default(false),
+    click: click("click").notNull().default("left"),
+    precision: precision("precision"),
+    /** The callout you stand at — "T Roof". The throw's name is where it lands. */
+    fromCallout: text("from_callout"),
+    /** One step per line: "stand in the corner of the pipe", "aim at the antenna". */
+    steps: text("steps"),
     note: text("note"),
     idx: integer("idx").notNull().default(0),
     createdBy: text("uploaded_by").references(() => players.steamid64),

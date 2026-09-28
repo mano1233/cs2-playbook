@@ -11,11 +11,10 @@ import { radarFor } from "@/lib/radar";
 import {
   UTIL_KINDS,
   type UtilKind,
-  TECHNIQUES,
-  type Technique,
   createLineup,
   createThrow,
   getThrowFull,
+  lineupPatchFrom,
   updateLineup,
   listThrows,
   nextThrowName,
@@ -64,13 +63,25 @@ export async function POST(request: Request) {
   const name =
     typeof body.name === "string" && body.name.trim()
       ? body.name.trim().slice(0, 80)
-      : await nextThrowName(map, kind);
+      : await nextThrowName(map, kind, {
+          x: landX,
+          y: landY,
+          z: typeof body.landZ === "number" ? body.landZ : null,
+          level,
+        });
 
   try {
     // Both positions are captured here, at creation, because both are write-once: a
     // throw made without its spot would be permanently half-formed. The one exception
     // is import, which has no positions at all to give and fills them in later.
     const lineupIn = (body.lineup ?? null) as Record<string, unknown> | null;
+    // Validated before anything is written, so a bad getpos does not leave a throw
+    // behind with no lineup.
+    const lineupPatch = lineupIn ? lineupPatchFrom(lineupIn, null, { map, level }) : null;
+    if (lineupPatch && !lineupPatch.ok) {
+      const { status, ...rest } = lineupPatch;
+      return Response.json(rest, { status });
+    }
 
     const row = await createThrow({
       map,
@@ -82,24 +93,13 @@ export async function POST(request: Request) {
       level,
       createdBy: auth.player.steamid64,
     });
-    if (lineupIn) {
+    if (lineupPatch?.ok) {
       const lineup = await createLineup({
         throwId: row.id,
-        name: typeof lineupIn.name === "string" && lineupIn.name.trim()
-          ? lineupIn.name.trim().slice(0, 80)
-          : null,
+        name: lineupPatch.patch.name ?? null,
         createdBy: auth.player.steamid64,
       });
-      const tx = typeof lineupIn.throwX === "number" ? lineupIn.throwX : null;
-      const ty = typeof lineupIn.throwY === "number" ? lineupIn.throwY : null;
-      await updateLineup(lineup.id, {
-        throwX: tx,
-        throwY: ty,
-        throwZ: typeof lineupIn.throwZ === "number" ? lineupIn.throwZ : null,
-        technique: (TECHNIQUES as string[]).includes(lineupIn.technique as string)
-          ? (lineupIn.technique as Technique)
-          : "stand",
-      });
+      await updateLineup(lineup.id, lineupPatch.patch);
     }
 
     const full = await getThrowFull(row.id);
