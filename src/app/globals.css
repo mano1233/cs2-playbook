@@ -175,6 +175,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 .radar-wrap { background: #000; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .radar { display: block; width: 100%; height: auto; }
+.radar-background-simple { filter: grayscale(1) contrast(1.35) brightness(1.65); opacity: .68; }
+.radar-callouts text { fill: #e0e9e8; font: 600 18px var(--mono); letter-spacing: 1.4px; text-anchor: middle; paint-order: stroke; stroke: #101719; stroke-width: 5px; stroke-linejoin: round; }
+.radar-callouts .radar-site-label { fill: #e7c978; font-size: 36px; font-weight: 800; }
 .radar.armed { cursor: crosshair; }
 .radar g { cursor: pointer; }
 
@@ -198,6 +201,21 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .board-head h1 { margin-bottom: .2rem; }
 .board-head .spacer, .board-actions { margin-left: auto; }
 .board-phase { margin-bottom: 2.2rem; }
+.buy-plan h3 { margin: 0 0 .5rem; }
+.buy-role { padding: .8rem 0; border-bottom: 1px solid var(--line); }
+.buy-role p { margin: .4rem 0 0; font-size: .85rem; }
+.buy-role-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.buy-items { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+.buy-item { display: inline-flex; align-items: center; gap: .35rem; background: #ffffff08; padding: .25rem .5rem; border: 1px solid var(--line); border-radius: 6px; }
+.buy-total { padding-top: 1rem; color: #70dfad; }
+.execute-lineups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1rem; margin-top: 1rem; }
+.execute-lineups h3 { margin-top: 0; }
+.lineup-guide { scroll-margin-top: 2rem; }
+.lineup-guide:target { outline: 2px solid #70dfad; outline-offset: 3px; }
+.lineup-guide h4 { margin: 0 0 .75rem; }
+.role-lineups { margin-top: 1.5rem; }
+.radar-utility-link { cursor: pointer; }
+.radar-utility-link:hover ellipse, .radar-utility-link:focus ellipse { stroke-width: 5px; fill-opacity: .5; }
 .board-phase h2 { font-size: 1.05rem; }
 .board-clock { font-family: var(--mono); font-size: .78rem; font-weight: 400; }
 .board-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; }

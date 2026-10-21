@@ -15,6 +15,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { env } from "./env";
+import { readLocalImage, writeLocalImage, deleteLocalImage } from "./local-images";
 
 let client: S3Client | undefined;
 
@@ -43,6 +44,7 @@ export interface FetchedObject {
 
 /** Null when the object is absent, so callers can answer 404 rather than 500. */
 export async function getObject(key: string): Promise<FetchedObject | null> {
+  if (process.env.LOCAL_IMAGE_DIR) return readLocalImage(process.env.LOCAL_IMAGE_DIR, key);
   try {
     const res = await s3().send(
       new GetObjectCommand({ Bucket: env.r2().bucket, Key: key }),
@@ -62,6 +64,7 @@ export async function getObject(key: string): Promise<FetchedObject | null> {
 }
 
 export async function putObject(key: string, body: Uint8Array, contentType: string) {
+  if (process.env.LOCAL_IMAGE_DIR) return writeLocalImage(process.env.LOCAL_IMAGE_DIR, key, body);
   await s3().send(
     new PutObjectCommand({
       Bucket: env.r2().bucket,
@@ -75,5 +78,6 @@ export async function putObject(key: string, body: Uint8Array, contentType: stri
 }
 
 export async function deleteObject(key: string) {
+  if (process.env.LOCAL_IMAGE_DIR) return deleteLocalImage(process.env.LOCAL_IMAGE_DIR, key);
   await s3().send(new DeleteObjectCommand({ Bucket: env.r2().bucket, Key: key }));
 }

@@ -2,11 +2,18 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { TopBar } from "@/components/TopBar";
+import { RadarBackground } from "@/components/RadarBackground";
 import { db } from "@/db";
 import { players } from "@/db/schema";
 import { requirePlayer } from "@/lib/auth";
 import { mapDisplayName, radarFor, worldToPixel } from "@/lib/radar";
 import { getStrat } from "@/lib/strats";
+import { playerMarker, assignmentDescription } from "@/lib/player-markers";
+import { MIRAGE_EXECUTE_ID, MIRAGE_BUY_PLAN, UTILITY, utilityCost, AFTER_THROW_JOBS } from "@/lib/mirage-buy-plan";
+import { UtilityIcon } from "@/components/UtilityIcon";
+import { MirageExecuteOverlay, CLEAR_TARGETS, HOLD_TARGETS } from "@/components/MirageExecuteOverlay";
+import { LineupGuide } from "@/components/LineupGuide";
+import { utilityRole } from "@/lib/utility-role";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +80,12 @@ export default async function Board({ params }: { params: Promise<{ id: string }
           <p className="muted">No phases yet.</p>
         ) : (
           full.phases.map(({ phase, assignments, utility }) => {
+            const isMirageExecute = strat.id === MIRAGE_EXECUTE_ID;
+            const showBuyPlan = isMirageExecute && phase.idx === 0;
+            const showExecuteOverlay = isMirageExecute && phase.idx === 1;
+            const showHoldOverlay = isMirageExecute && phase.idx === 2;
+            const guideUtility = showBuyPlan ? full.phases.find((p) => p.phase.idx === 1)?.utility ?? [] : isMirageExecute ? [] : utility;
+            const lookTargets = showHoldOverlay ? HOLD_TARGETS : CLEAR_TARGETS;
             // Only levels that actually carry a marker, so a flat map shows one radar
             // and Nuke shows two only when both floors are used.
             const levels = cfg.levels
@@ -97,13 +110,10 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                   <div className="board-radars" data-n={shown.length}>
                     {shown.map((lid) => (
                       <svg key={lid} viewBox="0 0 1000 1000" className="radar">
-                        <image
-                          href={`/api/radars/${strat.map}/${lid}`}
-                          x="0"
-                          y="0"
-                          width="1000"
-                          height="1000"
-                        />
+                        <RadarBackground map={strat.map} level={lid} />
+                        {showBuyPlan && lid === "default" ? <MirageExecuteOverlay mode="planning" assignments={assignments} guides={guideUtility.flatMap(({use, item, lineups}) => lineups.slice(0, 1).map(({lineup}) => ({name: item.name, lineupId: lineup.id, role: utilityRole(use.note)})))} /> : null}
+                        {showExecuteOverlay && lid === "default" ? <MirageExecuteOverlay assignments={assignments} /> : null}
+                        {showHoldOverlay && lid === "default" ? <MirageExecuteOverlay assignments={assignments} mode="hold" /> : null}
                         {utility
                           .filter((u) => u.item.level === lid)
                           .filter((u) => u.item.landX !== null && u.item.landY !== null)
@@ -155,24 +165,30 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                           .filter((a) => a.level === lid && a.x !== null && a.y !== null)
                           .map((a) => {
                             const p = worldToPixel(strat.map, a.x!, a.y!)!;
+                            const marker = playerMarker(a.note, nameOf(a.playerSteamid64));
                             return (
                               <g key={a.id}>
+                                <title>{marker.label}: {assignmentDescription(a.note) ?? a.action}</title>
                                 <circle
                                   cx={p.fx * 1000}
                                   cy={p.fy * 1000}
-                                  r="13"
-                                  fill="#17a398"
-                                  stroke="#00000088"
-                                  strokeWidth="1.5"
+                                  r="16"
+                                  fill={marker.colour}
+                                  stroke="#101719"
+                                  strokeWidth="3"
                                 />
+                                <text x={p.fx * 1000} y={p.fy * 1000 + 6} textAnchor="middle" fontSize="18" fontWeight="800" fill="#101719">{marker.number ?? "•"}</text>
                                 <text
                                   x={p.fx * 1000}
-                                  y={p.fy * 1000 + 24}
+                                  y={p.fy * 1000 + 38}
                                   textAnchor="middle"
-                                  fontSize="20"
-                                  fill="#e6ecea"
+                                  fontSize="18"
+                                  fill={marker.colour}
+                                  stroke="#101719"
+                                  strokeWidth="5"
+                                  paintOrder="stroke"
                                 >
-                                  {nameOf(a.playerSteamid64)}
+                                  {marker.label}
                                 </text>
                               </g>
                             );
@@ -181,8 +197,26 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                     ))}
                   </div>
 
+                  <div>
+                  {showBuyPlan ? (
+                    <section className="buy-plan" aria-label="Player utility buy plan">
+                      <h3>Utility to buy</h3>
+                      <p className="muted">Minimum cash for the listed utility, assuming none is carried over. Weapons and armor cost extra.</p>
+                      {MIRAGE_BUY_PLAN.map(({ role, items, job }) => {
+                        const marker = playerMarker(`${role}:`, role);
+                        return (
+                          <div className="buy-role" key={role}>
+                            <div className="buy-role-head"><strong style={{ color: marker.colour }}>{marker.number} · {role}</strong><strong>${utilityCost(items)}</strong></div>
+                            <div className="buy-items">{items.length ? items.map((kind, i) => <span className="buy-item" key={`${kind}-${i}`}><UtilityIcon kind={kind} colour={marker.colour} /><span>{UTILITY[kind].label}</span></span>) : <span className="muted">No utility required for this role</span>}</div>
+                            <p className="muted">{job}</p>
+                          </div>
+                        );
+                      })}
+                      <div className="buy-role-head buy-total"><strong>Team utility minimum</strong><strong>${MIRAGE_BUY_PLAN.reduce((sum, row) => sum + utilityCost(row.items), 0)}</strong></div>
+                    </section>
+                  ) : null}
                   <ul className="board-jobs">
-                    {utility.map(({ use, item, lineups }) => {
+                    {!showExecuteOverlay ? utility.map(({ use, item, lineups }) => {
                       const g = GLYPH[item.kind] ?? GLYPH.smoke!;
                       return (
                         <li key={use.id}>
@@ -201,22 +235,52 @@ export default async function Board({ params }: { params: Promise<{ id: string }
                           ) : null}
                         </li>
                       );
-                    })}
-                    {assignments.map((a) => (
+                    }) : null}
+                    {!showBuyPlan ? assignments.map((a) => {
+                      const marker = playerMarker(a.note, nameOf(a.playerSteamid64));
+                      return (
                       <li key={a.id}>
-                        <span className="job-glyph" style={{ color: "#17a398" }}>
-                          ▲
+                        <span className="job-glyph" style={{ color: marker.colour }}>
+                          {marker.number ?? "▲"}
                         </span>
-                        <span className="job-who">{nameOf(a.playerSteamid64)}</span>
+                        <span className="job-who" style={{ color: marker.colour }}>{marker.label}{a.playerSteamid64 ? ` · ${nameOf(a.playerSteamid64)}` : ""}</span>
                         <span className="job-what">{a.action}</span>
-                        {a.note ? <span className="muted job-note">{a.note}</span> : null}
+                        {a.note ? <span className="muted job-note">{showExecuteOverlay ? AFTER_THROW_JOBS[marker.label] ?? assignmentDescription(a.note) : assignmentDescription(a.note)}</span> : null}
+                        {(showExecuteOverlay || showHoldOverlay) && lookTargets[marker.label] ? <span className="muted job-note">→ {lookTargets[marker.label]!.label}</span> : null}
                       </li>
-                    ))}
+                    ); }) : null}
                     {utility.length === 0 && assignments.length === 0 ? (
                       <li className="muted">Nothing placed in this phase.</li>
                     ) : null}
                   </ul>
+                  {showBuyPlan ? <p className="muted">Utility zones use the thrower's role color. Click an icon for the lineup. Landing areas are approximate planning targets.</p> : null}
+                  {showExecuteOverlay ? <p className="muted">After throwing: move together on the flash. Arrows show clearing angles; Bomb and Support follow behind the first contact.</p> : null}
+                  {showHoldOverlay ? <p className="muted">Colored arrows show where each role should look after planting. These are suggested holding angles; adjust to enemy information.</p> : null}
+                  </div>
                 </div>
+                {guideUtility.length ? (
+                  <section className="role-lineups">
+                    <h3>Utility guides by role</h3>
+                    <p className="muted">Click a utility icon on the radar, or choose “Show how to throw” below.</p>
+                    {[...new Set(guideUtility.map(({ use }) => utilityRole(use.note)))].map((role) => {
+                      const marker = playerMarker(`${role}:`, role);
+                      const uses = guideUtility.filter(({use}) => utilityRole(use.note) === role);
+                      const playerIds = [...new Set(uses.map(({use}) => use.throwerSteamid64).filter((sid): sid is string => Boolean(sid)))];
+                      return <section key={role}>
+                        <h3 style={{ color: marker.colour }}>{role}{playerIds.length ? ` · ${playerIds.map(nameOf).join(", ")}` : ""}</h3>
+                        <div className="execute-lineups">
+                          {uses.flatMap(({item, lineups}) => lineups.map(({lineup, shots}) => <LineupGuide
+                            key={lineup.id} id={lineup.id} name={item.name}
+                            technique={`${lineup.movement.replaceAll("_", " ")} · ${lineup.jump ? "jump throw" : "no jump"} · ${lineup.click} click`}
+                            steps={lineup.steps} note={lineup.note}
+                            shots={shots.map(({id, shotKind}) => ({id, shotKind}))}
+                            command={lineup.throwX !== null && lineup.throwY !== null && lineup.throwZ !== null && lineup.pitch !== null && lineup.yaw !== null ? `setpos ${lineup.throwX} ${lineup.throwY} ${lineup.throwZ}; setang ${lineup.pitch} ${lineup.yaw} 0` : null}
+                          />))}
+                        </div>
+                      </section>;
+                    })}
+                  </section>
+                ) : null}
               </section>
             );
           })
