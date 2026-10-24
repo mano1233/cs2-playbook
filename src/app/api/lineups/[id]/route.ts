@@ -4,12 +4,30 @@
  * Shared, like the throw it belongs to: fixing a lineup fixes it in every strat that
  * uses the throw, which is the whole point of the library.
  */
-import { requireWriter } from "@/lib/auth";
+import { requirePlayer, requireWriter } from "@/lib/auth";
 import { deleteLineup, getLineup, getThrow, lineupPatchFrom, updateLineup } from "@/lib/throws";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Metadata for the local screenshot helper; positions are never executed server-side. */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requirePlayer();
+  if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
+  const { id } = await params;
+  if (!UUID.test(id)) return Response.json({ error: "bad id" }, { status: 400 });
+  const lineup = await getLineup(id);
+  if (!lineup) return Response.json({ error: "no such lineup" }, { status: 404 });
+  const owner = await getThrow(lineup.throwId);
+  if (!owner) return Response.json({ error: "no such throw" }, { status: 404 });
+  return Response.json({ lineup, map: owner.map, throwName: owner.name }, {
+    headers: { "cache-control": "private, no-store" },
+  });
+}
 
 export async function PATCH(
   request: Request,

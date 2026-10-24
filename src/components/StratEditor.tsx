@@ -1,5 +1,7 @@
 "use client";
 
+import { RadarBackground } from "./RadarBackground";
+
 /**
  * The creator.
  *
@@ -670,7 +672,7 @@ export function StratEditor({
             className={`radar ${tool || placingFor || placingLanding || pending ? "armed" : ""}`}
             onClick={(e) => void onRadarClick(e)}
           >
-            <image href={`/api/radars/${map}/${level}`} x="0" y="0" width="1000" height="1000" />
+            <RadarBackground map={map} level={level} />
 
             {usesOnLevel.map((use) => {
               const t = throwsById.get(use.throwId)!;

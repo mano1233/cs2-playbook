@@ -76,6 +76,45 @@ A map is covered once any demo of it has been played; rerun after adding demos:
 ../cs2-demos/.venv/Scripts/python scripts/extract-callouts.py
 ```
 
+## Local CS2 screenshot helper
+
+See [CAPTURE.md](CAPTURE.md) for the Windows helper that positions the player using
+saved lineup coordinates, captures the CS2 window, and optionally uploads the image.
+Requires a local practice session and an API key from the website's `/keys` page.
+
+## Local images and sample Mirage execute
+
+For a local setup without R2, set `LOCAL_IMAGE_DIR=./work/images` in `.env.local`
+and restart the server. Existing authenticated image routes serve this directory;
+do not put private screenshots under `public/`. Back up the directory with the DB.
+Unset the variable to use R2 again. Existing R2 images are not automatically copied.
+
+To create sample tactics, import five Mirage A execute screenshots, and place
+the suggested role positions:
+
+```powershell
+node --env-file=.env.local scripts/seed-sample-strats.mjs
+node --env-file=.env.local scripts/import-mirage-execute.mjs "C:\path\to\screenshots"
+node --env-file=.env.local scripts/place-mirage-roles.mjs
+```
+
+The import preserves existing edits on rerun. It stores crosshair references and
+standing/aim coordinates, links all five throws to the execute phase, and leaves
+unknown landing positions unset. The tactic board displays the reference images.
+
+The screenshot folder must contain `ct smokes.jpg`, `stairs smoke.jpg`,
+`jungle smoke from ramp.jpg`, `flash site from palace.jpg`, and
+`under palace molotov.jpg`. Screenshots, database contents, downloaded radar assets,
+and credentials are local data and are not bundled with the source code.
+Place an uncropped Mirage radar at `work/images/radars/de_mirage__default.png`.
+The image must match the existing 1024-square calibration.
+
+The sample execute separates the utility buy/throw plan, actions after throwing,
+and post-plant holding angles. Click role-colored utility targets during planning
+to open the matching lineup guide. Radar targets and role positions are approximate
+planning aids; saved aim/standing coordinates remain separate. This is a scoped
+Mirage example, not a general buy-plan editor. Verify the throws in CS2.
+
 ## Tests
 
 ```bash

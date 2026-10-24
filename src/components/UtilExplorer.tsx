@@ -1,5 +1,7 @@
 "use client";
 
+import { RadarBackground } from "./RadarBackground";
+
 /**
  * The map explorer: one radar, every landing spot, drill down to a lineup.
  *
@@ -310,11 +312,7 @@ export function UtilExplorer({
           className="radar ux-radar"
           onClick={(e) => e.target === e.currentTarget && selectThrow(null)}
         >
-          <image
-            href={`/api/radars/${map}/${level}`}
-            x="0" y="0" width="1000" height="1000"
-            onClick={() => selectThrow(null)}
-          />
+          <RadarBackground map={map} level={level} />
 
           {/* Names first, so every marker draws over them and stays clickable. */}
           {showCallouts
