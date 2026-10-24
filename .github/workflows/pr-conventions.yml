@@ -1,0 +1,79 @@
+name: PR conventions
+
+# Enforces the ticket rules in AGENTS.md: the branch is DEV-<n>-<description>, the PR
+# title has a commit-type prefix, and the PR body and every commit carry the DEV-<n>
+# footer. When JIRA_EMAIL and JIRA_API_TOKEN are set, it also checks the key exists,
+# because a footer pointing at a ticket that was never created is worse than none.
+#
+# pull_request_target, not pull_request, so the Jira secrets are available to PRs from
+# forks too. That is safe only because nothing here checks out or runs the PR's code:
+# the title, body, branch name and commit messages are read as data, through env vars.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      TITLE: ${{ github.event.pull_request.title }}
+      BODY: ${{ github.event.pull_request.body }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      JIRA_SITE: https://midgard-home.atlassian.net
+    steps:
+      - name: Check branch, title, body and commits
+        run: |
+          fail=0
+          err() { echo "::error::$1"; fail=1; }
+          # The key stands alone on a line, give or take whitespace (and the CR a web
+          # editor adds).
+          has_footer() { tr -d '\r' | grep -qxE "[[:space:]]*$1[[:space:]]*"; }
+
+          if [[ "$BRANCH" =~ ^(DEV-[0-9]+)- ]]; then
+            key=${BASH_REMATCH[1]}
+          else
+            echo "::error::Branch '$BRANCH' must be named DEV-<n>-<short-description>, after an existing DEV ticket. See AGENTS.md."
+            exit 1
+          fi
+          echo "Ticket from branch: $key"
+
+          type_re='^(feat|fix|chore|docs|refactor|test|ci|perf|build)(\([a-z0-9-]+\))?!?: .+'
+          if ! [[ "$TITLE" =~ $type_re ]]; then
+            err "PR title must look like '<type>: <summary>' (feat, fix, chore, docs, refactor, test, ci, perf, build); it becomes the squash commit on main."
+          fi
+
+          if ! printf '%s\n' "$BODY" | has_footer "$key"; then
+            err "PR description must contain $key on its own line."
+          fi
+
+          # Merge commits (two parents) come from syncing with main and carry no footer.
+          while IFS=$'\t' read -r sha message; do
+            if ! printf '%s' "$message" | base64 -d | has_footer "$key"; then
+              err "Commit $sha has no '$key' footer line."
+            fi
+          done < <(gh api "repos/$GH_REPO/pulls/$PR/commits" --paginate \
+                     --jq '.[] | select(.parents | length == 1) | [.sha[0:7], (.commit.message | @base64)] | @tsv')
+
+          if [ -z "$JIRA_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "::notice::JIRA_EMAIL / JIRA_API_TOKEN are not set; $key was not checked against Jira."
+          else
+            code=$(curl -s -o /tmp/issue.json -w '%{http_code}' -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+              -H 'Accept: application/json' "$JIRA_SITE/rest/api/3/issue/$key?fields=summary,status")
+            case "$code" in
+              200) echo "$key: $(jq -r '"\(.fields.summary) [\(.fields.status.name)]"' /tmp/issue.json)" ;;
+              404) err "$key does not exist in Jira. Create the ticket (or fix the key) before opening the PR." ;;
+              *)   err "Jira answered HTTP $code for $key; check the JIRA_EMAIL / JIRA_API_TOKEN secrets." ;;
+            esac
+          fi
+
+          exit $fail
