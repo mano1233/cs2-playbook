@@ -52,8 +52,9 @@ Work is tracked in Jira, project `DEV` on `midgard-home.atlassian.net`.
 ## Releasing
 
 `VERSION` is the published image tag. Every push to `main` builds
-`ghcr.io/mano1233/cs2-playbook:<VERSION>`. A newer VERSION also makes midgard open the
-PR that deploys it. Bump it in any PR that should reach production: minor for a
+`ghcr.io/mano1233/cs2-playbook:<VERSION>`. A newer VERSION also tags `v<VERSION>`,
+publishes a GitHub Release with notes generated from the merged PR titles (another
+reason they must be clear), and makes midgard open the PR that deploys it. Bump it in any PR that should reach production: minor for a
 feature, patch for a fix, one bump per PR. A PR that leaves VERSION alone ships nothing.
 
 ## Keep out of git
