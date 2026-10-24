@@ -53,9 +53,15 @@ Work is tracked in Jira, project `DEV` on `midgard-home.atlassian.net`.
 
 `VERSION` is the published image tag. Every push to `main` builds
 `ghcr.io/mano1233/cs2-playbook:<VERSION>`. A newer VERSION also tags `v<VERSION>`,
-publishes a GitHub Release with notes generated from the merged PR titles (another
-reason they must be clear), and makes midgard open the PR that deploys it. Bump it in any PR that should reach production: minor for a
-feature, patch for a fix, one bump per PR. A PR that leaves VERSION alone ships nothing.
+publishes a GitHub Release, and makes midgard open the PR that deploys it. Bump it in
+any PR that should reach production: minor for a feature, patch for a fix, one bump per
+PR. A PR that leaves VERSION alone ships nothing.
+
+The release notes are the merged PR titles, grouped by the title's type: `feat` under
+Features, `fix` under Fixes, `perf` under Performance, the rest under Other changes,
+and `ci` / `chore` left out. CI labels each PR `type:<type>` from its title, so the
+type is how a change shows up to whoever reads the release. Pick it for that reader,
+and write the summary for them too.
 
 ## Keep out of git
 

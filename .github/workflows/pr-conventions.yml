@@ -5,6 +5,9 @@ name: PR conventions
 # footer. When JIRA_EMAIL and JIRA_API_TOKEN are set, it also checks the key exists,
 # because a footer pointing at a ticket that was never created is worse than none.
 #
+# It also labels the PR type:<type> from the title, which is what .github/release.yml
+# groups the generated release notes by.
+#
 # pull_request_target, not pull_request, so the Jira secrets are available to PRs from
 # forks too. That is safe only because nothing here checks out or runs the PR's code:
 # the title, body, branch name and commit messages are read as data, through env vars.
@@ -15,7 +18,9 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  # Write only to set the type label; nothing else here changes the PR.
+  pull-requests: write
+  issues: write
 
 jobs:
   check:
@@ -31,6 +36,26 @@ jobs:
       JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
       JIRA_SITE: https://midgard-home.atlassian.net
     steps:
+      # First, and allowed to fail: a missing label only ungroups a release note, so it
+      # must never be the thing that blocks a merge.
+      - name: Label the PR with its type
+        continue-on-error: true
+        run: |
+          type=""
+          if [[ "$TITLE" =~ ^(feat|fix|chore|docs|refactor|test|ci|perf|build)(\([a-z0-9-]+\))?!?:\  ]]; then
+            type=${BASH_REMATCH[1]}
+          fi
+          want=${type:+type:$type}
+          have=$(gh pr view "$PR" --json labels --jq '.labels[].name | select(startswith("type:"))')
+          # A retitled PR swaps its label rather than collecting both.
+          for label in $have; do
+            [ "$label" = "$want" ] || gh pr edit "$PR" --remove-label "$label"
+          done
+          if [ -n "$want" ] && ! grep -qxF "$want" <<<"$have"; then
+            gh pr edit "$PR" --add-label "$want"
+          fi
+          echo "type label: ${want:-none}"
+
       - name: Check branch, title, body and commits
         run: |
           fail=0
